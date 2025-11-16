@@ -13,7 +13,7 @@ static int16_t current_duty;
 static uint16_t current_pwm;
 
 UINT motor_driver_initialize(){
-	uint ret;
+	UINT ret;
 	ret = tx_mutex_create(&motor_mutex, "motor_mutex", TX_INHERIT);
 	if(ret != TX_SUCCESS){
 		printf("Error in creating motor_mutex: %u\n", ret);
