@@ -38,8 +38,6 @@
 #define TRACEX_BUFFER_SIZE		64000
 #define LED_THREAD_STACK_SIZE	4096
 #define LED_THREAD_PRIORITY		10
-#define	MSG_SIZE				1
-#define QUEUE_SIZE				20*sizeof(int32_t)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,12 +48,12 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 uint8_t tracex_buffer[TRACEX_BUFFER_SIZE];
-uint32_t queue_start_udp_pid[QUEUE_SIZE];
-uint32_t queue_start_udp_http[QUEUE_SIZE];
+
 
 TX_THREAD led_thread;
-TX_QUEUE queue_udp_pid_req_pos;
-TX_QUEUE queue_udp_http_req_pos;
+
+int32_t requested_position;
+TX_MUTEX mutex_req_pos;
 
 
 /* USER CODE END PV */
@@ -100,19 +98,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
     if(ret != TX_SUCCESS){
   	  printf("[APP THREADX INIT] error in encoder driver initialize: %u\n", ret);
     }
-  ret = tx_queue_create(&queue_udp_pid_req_pos, "queue udp-pid", MSG_SIZE,
-  					queue_start_udp_pid, QUEUE_SIZE);
-  	if(ret != TX_SUCCESS){
-  		printf("[APP THREADX INIT] error in tx_queue_create udp_pid: %u", ret);
-  		return;
-  	}
 
-  	ret = tx_queue_create(&queue_udp_http_req_pos, "queue udp-http", MSG_SIZE,
-  						queue_start_udp_http, QUEUE_SIZE);
-  		if(ret != TX_SUCCESS){
-  			printf("[APP THREADX INIT] error in tx_queue_create udp_http: %u", ret);
-  			return;
-  		}
+  ret = tx_mutex_create(&mutex_req_pos, "mutex requested position", TX_INHERIT);
+  if(ret != TX_SUCCESS){
+	  printf("[APP THREADX INITI] error in mutex creation: %u\n", ret);
+  }
 
 
   /* USER CODE END App_ThreadX_MEM_POOL */

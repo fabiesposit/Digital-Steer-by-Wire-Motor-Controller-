@@ -62,8 +62,8 @@ CHAR *ftpServerStack;
 extern TX_SEMAPHORE sdMountDone;
 extern FX_MEDIA        sdio_disk;
 
-extern TX_QUEUE queue_udp_http_req_pos;
-extern TX_QUEUE queue_udp_pid_req_pos;
+extern int32_t requested_position;
+extern TX_MUTEX mutex_req_pos;
 
 NX_WEB_HTTP_SERVER httpServer;
 CHAR *httpServerStack;
@@ -359,19 +359,19 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		/*position is signed to avoid discontinuities*/
 		int32_t pos = (int32_t)raw;
 
-		ret = tx_queue_send(&queue_udp_http_req_pos, (void*) &pos, TX_WAIT_FOREVER);
+		ret = tx_mutex_get(&mutex_req_pos, TX_WAIT_FOREVER);
 		if(ret != TX_SUCCESS){
-			printf("[UDP SOCKET]: Error in tx_queue_send: %u\n", ret);
-			return;
-		}
+					printf("[UDP SOCKET]: Error in getting the mutex: %u\n", ret);
+					return;
+				}
+		requested_position = pos;
+		ret = tx_mutex_put(&mutex_req_pos);
+				if(ret != TX_SUCCESS){
+							printf("[UDP SOCKET]: Error in putting the mutex: %u\n", ret);
+							return;
+						}
 
-		ret = tx_queue_send(&queue_udp_pid_req_pos, (void*) &pos, TX_WAIT_FOREVER);
-		if(ret != TX_SUCCESS){
-			printf("[UDP SOCKET]: Error in tx_queue_send: %u\n", ret);
-			return;
-		}
-
-		printf("[UDP SOCKET] req_pos successfully sent to the queues\n");
+		printf("[UDP SOCKET] Position updated succesfully\n");
 
 		ret = nx_packet_release(incoming_packet);
 		if(ret != NX_SUCCESS){
@@ -442,17 +442,26 @@ UINT http_request_notify(NX_WEB_HTTP_SERVER *server_ptr,
     	char body[32];
     	UINT ret;
 
-    	ret = tx_queue_receive(&queue_udp_http_req_pos, &req_pos, TX_WAIT_FOREVER);
-    	if(ret != TX_SUCCESS){
-    		printf("[HTTP] Error in tx_queue_receive: %u\n", ret);
-    	}
+    	ret = tx_mutex_get(&mutex_req_pos, TX_WAIT_FOREVER);
+		if(ret != TX_SUCCESS){
+			printf("[HTTP SERVER]: Error in getting the mutex: %u\n", ret);
+			return;
+		}
+
+		req_pos = requested_position;
+
+		ret = tx_mutex_put(&mutex_req_pos);
+		if(ret != TX_SUCCESS){
+			printf("[HTTP SERVER]: Error in putting the mutex: %u\n", ret);
+			return;
+		}
 
     	UINT  len = (UINT)snprintf(body, sizeof(body), "%ld\r\n", (long)req_pos);
-    	    	return nx_web_http_server_callback_response_send(
-    	    	                    server_ptr,
-    	    	                    "200 OK",
-    	    	                    body,
-    	    	                    NX_NULL);
+		return nx_web_http_server_callback_response_send(
+							server_ptr,
+							"200 OK",
+							body,
+							NX_NULL);
 
 
     }
@@ -468,11 +477,11 @@ UINT http_request_notify(NX_WEB_HTTP_SERVER *server_ptr,
     	}
 
     	UINT  len = (UINT)snprintf(body, sizeof(body), "%u\r\n", pwm);
-    	    	    	return nx_web_http_server_callback_response_send(
-    	    	    	                    server_ptr,
-    	    	    	                    "200 OK",
-    	    	    	                    body,
-    	    	    	                    NX_NULL);
+		return nx_web_http_server_callback_response_send(
+							server_ptr,
+							"200 OK",
+							body,
+							NX_NULL);
 
     }
 
