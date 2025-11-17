@@ -27,6 +27,9 @@
 #include "nxd_ftp_server.h"
 #include "nx_web_http_server.h"
 #include "main.h"
+#include "app_threadx.h"
+#include "encoder_driver.h"
+#include "motor_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +62,9 @@ CHAR *ftpServerStack;
 extern TX_SEMAPHORE sdMountDone;
 extern FX_MEDIA        sdio_disk;
 
+extern TX_QUEUE queue_udp_http_req_pos;
+extern TX_QUEUE queue_udp_pid_req_pos;
+
 NX_WEB_HTTP_SERVER httpServer;
 CHAR *httpServerStack;
 
@@ -71,9 +77,6 @@ static NX_WEB_HTTP_SERVER_MIME_MAP app_mime_maps[] =
   {"ico", "image/x-icon"},
   {"js", "text/javascript"}
 };
-
-extern TX_QUEUE queue_udp_pid_req_pos;
-extern TX_QUEUE queue_udp_http_req_pos;
 
 /* USER CODE END PV */
 
@@ -347,19 +350,22 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		printf("[UDP SOCKET]: Raw bytes: %02X %02X %02X %02X\n",
 		       data[0], data[1], data[2], data[3]);
 
-		uint32_t pos =
+		uint32_t raw =
 		    ((uint32_t)data[0] << 24) |
 		    ((uint32_t)data[1] << 16) |
 		    ((uint32_t)data[2] << 8 ) |
 		    ((uint32_t)data[3]);
 
-		ret = tx_queue_send(&queue_udp_pid_req_pos, (void*) &pos, TX_WAIT_FOREVER);
+		/*position is signed to avoid discontinuities*/
+		int32_t pos = (int32_t)raw;
+
+		ret = tx_queue_send(&queue_udp_http_req_pos, (void*) &pos, TX_WAIT_FOREVER);
 		if(ret != TX_SUCCESS){
 			printf("[UDP SOCKET]: Error in tx_queue_send: %u\n", ret);
 			return;
 		}
 
-		ret = tx_queue_send(&queue_udp_http_req_pos, (void*) &pos, TX_WAIT_FOREVER);
+		ret = tx_queue_send(&queue_udp_pid_req_pos, (void*) &pos, TX_WAIT_FOREVER);
 		if(ret != TX_SUCCESS){
 			printf("[UDP SOCKET]: Error in tx_queue_send: %u\n", ret);
 			return;
@@ -409,24 +415,65 @@ UINT http_request_notify(NX_WEB_HTTP_SERVER *server_ptr,
         return NX_SUCCESS;
     }
 
-    if (memcmp(resource, "/LED", 4) == 0)
+
+    if (memcmp(resource, "/actual", 7) == 0)
     {
-    	if (resource[4] == '1')
-    	{
-    		// button LED1 pressed
+    	int32_t actual_pos;
+    	char  body[32];
+    	UINT ret;
+
+    	ret = encoder_driver_input(&actual_pos);
+    	if(ret != TX_SUCCESS){
+    		printf("[HTTP] Error in encoder driver input: %u\n", ret);
     	}
 
-    	if (resource[4] == '2')
-    	{
-    		// button LED2 pressed
+    	UINT  len = (UINT)snprintf(body, sizeof(body), "%ld\r\n", (long)actual_pos);
+    	return nx_web_http_server_callback_response_send(
+    	                    server_ptr,
+    	                    "200 OK",
+    	                    body,
+    	                    NX_NULL);
+
+
+    }
+
+    if(memcmp(resource, "/requested", 10) == 0){
+    	int32_t req_pos;
+    	char body[32];
+    	UINT ret;
+
+    	ret = tx_queue_receive(&queue_udp_http_req_pos, &req_pos, TX_WAIT_FOREVER);
+    	if(ret != TX_SUCCESS){
+    		printf("[HTTP] Error in tx_queue_receive: %u\n", ret);
     	}
 
-    	if (resource[4] == '3')
-		{
-    		// button LED3 pressed
-		}
+    	UINT  len = (UINT)snprintf(body, sizeof(body), "%ld\r\n", (long)req_pos);
+    	    	return nx_web_http_server_callback_response_send(
+    	    	                    server_ptr,
+    	    	                    "200 OK",
+    	    	                    body,
+    	    	                    NX_NULL);
 
-    	return NX_SUCCESS;
+
+    }
+
+    if(memcmp(resource, "/pwm", 4) == 0){
+    	uint16_t pwm;
+    	char body[32];
+    	UINT ret;
+
+    	ret = motor_driver_get_pwm(&pwm);
+    	if(ret != TX_SUCCESS){
+    		printf("[HTTP] Error in motor driver get pwm: %u", ret);
+    	}
+
+    	UINT  len = (UINT)snprintf(body, sizeof(body), "%u\r\n", pwm);
+    	    	    	return nx_web_http_server_callback_response_send(
+    	    	    	                    server_ptr,
+    	    	    	                    "200 OK",
+    	    	    	                    body,
+    	    	    	                    NX_NULL);
+
     }
 
     return NX_SUCCESS;

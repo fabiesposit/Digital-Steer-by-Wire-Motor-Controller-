@@ -24,6 +24,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "main.h"
+#include "motor_driver.h"
+#include "encoder_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,7 +39,7 @@
 #define LED_THREAD_STACK_SIZE	4096
 #define LED_THREAD_PRIORITY		10
 #define	MSG_SIZE				1
-#define QUEUE_SIZE				20*sizeof(uint32_t)
+#define QUEUE_SIZE				20*sizeof(int32_t)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -89,6 +91,15 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   if (ret != TX_SUCCESS)
     return ret;
 
+  ret = motor_driver_initialize();
+  if(ret != TX_SUCCESS){
+	  printf("[APP THREADX INIT] error in motor driver initialize: %u\n", ret);
+  }
+
+  ret = encoder_driver_initialize();
+    if(ret != TX_SUCCESS){
+  	  printf("[APP THREADX INIT] error in encoder driver initialize: %u\n", ret);
+    }
   ret = tx_queue_create(&queue_udp_pid_req_pos, "queue udp-pid", MSG_SIZE,
   					queue_start_udp_pid, QUEUE_SIZE);
   	if(ret != TX_SUCCESS){
