@@ -35,9 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TRACEX_BUFFER_SIZE		64000
-#define LED_THREAD_STACK_SIZE	4096
-#define LED_THREAD_PRIORITY		10
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,7 +48,7 @@
 uint8_t tracex_buffer[TRACEX_BUFFER_SIZE];
 
 
-TX_THREAD led_thread;
+TX_THREAD pid_thread;
 
 int32_t requested_position;
 TX_MUTEX mutex_req_pos;
@@ -60,7 +58,7 @@ TX_MUTEX mutex_req_pos;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-void led_thread_entry(ULONG init);
+void pid_thread_entry(ULONG init);
 /* USER CODE END PFP */
 
 /**
@@ -75,16 +73,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   TX_BYTE_POOL *bytePool = (TX_BYTE_POOL *) memory_ptr;
   VOID *pointer;
 
-  // stack allocation for LED thread
-  ret = tx_byte_allocate(bytePool, &pointer, LED_THREAD_STACK_SIZE, TX_NO_WAIT);
-
-  if (ret != TX_SUCCESS)
-    return ret;
-
-
-  // LED thread create
-  ret = tx_thread_create(&led_thread, "LED thread", led_thread_entry, 1234,
-	  pointer, LED_THREAD_STACK_SIZE, LED_THREAD_PRIORITY, LED_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
+  // stack allocation for PID thread
+  ret = tx_byte_allocate(bytePool, &pointer, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
 
   if (ret != TX_SUCCESS)
     return ret;
@@ -103,6 +93,14 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   if(ret != TX_SUCCESS){
 	  printf("[APP THREADX INITI] error in mutex creation: %u\n", ret);
   }
+
+  // PID thread create
+    ret = tx_thread_create(&pid_thread, "PID thread", pid_thread_entry, 1234,
+  	  pointer, PID_THREAD_STACK_SIZE, PID_THREAD_PRIORITY, PID_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
+
+    if (ret != TX_SUCCESS)
+      return ret;
+
 
 
   /* USER CODE END App_ThreadX_MEM_POOL */
@@ -134,14 +132,66 @@ void MX_ThreadX_Init(void)
 
 /* USER CODE BEGIN 1 */
 
-void led_thread_entry(ULONG init)
+void pid_thread_entry(ULONG init)
 {
-
+	UINT ret;
+	int32_t last_req_pos;
+	int32_t req_pos;
+	int32_t act_pos;
+	float e_prev;
+	float integral;
 
 	while(1)
 	{
+		ret = tx_mutex_get(&mutex_req_pos, TX_NO_WAIT);
+		if(ret == TX_SUCCESS){
+			req_pos = requested_position;
+			last_req_pos = req_pos;
 
-		tx_thread_sleep(20);
+			ret = tx_mutex_put(&mutex_req_pos);
+			if(ret != TX_SUCCESS){
+				printf("[PID] error in putting the mutex");
+			}
+		}
+		else if(ret == TX_NOT_AVAILABLE){
+			// use last_req_pos
+			req_pos = last_req_pos;
+		}
+		else{
+			printf("[PID] error in getting the mutex: %u\n", ret);
+			continue;
+		}
+
+		ret = encoder_driver_input(&act_pos);
+		if(ret != TX_SUCCESS){
+			printf("[PID] error in encoder driver input: %u\n", ret);
+			continue;
+		}
+
+		float e = (float) (req_pos - act_pos); //error
+		float Pterm = PID_KP * e;
+
+		integral += PID_KI * PID_SAMPLING_PERIOD_MS * e;
+
+		float Dterm = 0.0f;
+		if(PID_KD != 0.0f){
+			 Dterm = PID_KD * (e - e_prev) / PID_SAMPLING_PERIOD_SEC;
+		}
+
+		float u = Pterm + integral + Dterm;
+
+		e_prev = e;
+
+		/*drive the motor*/
+		int16_t duty = (int16_t) u;
+		ret = motor_driver_set_duty(duty);
+		if (ret != TX_SUCCESS)
+		{
+			printf("[PID] Error in motor_driver_set_duty: %u\n", ret);
+		}
+
+
+		tx_thread_sleep(PID_SAMPLING_PERIOD_TICKS);
 	}
 }
 

@@ -45,7 +45,17 @@ extern "C" {
 
 /* Private defines -----------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TRACEX_BUFFER_SIZE		64000
+#define PID_THREAD_STACK_SIZE	4096
+#define PID_THREAD_PRIORITY		10
+#define PID_SAMPLING_PERIOD_MS   10
+#define PID_SAMPLING_PERIOD_SEC ((PID_SAMPLING_PERIOD_MS) * 1000)
+#define PID_SAMPLING_PERIOD_TICKS   ((PID_SAMPLING_PERIOD_MS / TX_TIMER_TICKS_PER_SECOND) * 1000)
 
+/* PID gains  */
+#define PID_KP                      0.5f
+#define PID_KI                      0.0f
+#define PID_KD                      0.0f
 /* USER CODE END PD */
 
 /* Main thread defines -------------------------------------------------------*/

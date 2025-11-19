@@ -32,7 +32,7 @@ extern "C" {
 #include "nx_stm32_eth_driver.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "app_threadx.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -78,10 +78,10 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr);
 
 #define Nx_IP_INSTANCE_THREAD_SIZE           1024
 
-#define NX_APP_THREAD_PRIORITY               10
+#define NX_APP_THREAD_PRIORITY               (PID_THREAD_PRIORITY + 2)
 
 #ifndef NX_APP_INSTANCE_PRIORITY
-#define NX_APP_INSTANCE_PRIORITY             NX_APP_THREAD_PRIORITY
+#define NX_APP_INSTANCE_PRIORITY             (NX_APP_THREAD_PRIORITY - 1)
 #endif
 
 #define NX_APP_DEFAULT_IP_ADDRESS                   IP_ADDRESS(192, 168, 1, 1)
