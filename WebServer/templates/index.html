@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>PSR Motor Controller - Monitoraggio Live</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #333; color: #EEE; }
+        .container { display: flex; flex-direction: column; align-items: center; width: 90%; margin: auto; }
+        .chart-box { background: #444; padding: 20px; border-radius: 8px; margin: 15px 0; width: 100%; max-width: 900px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Monitoraggio Digitale - Controllore Motore</h2>
+        
+        <div class="chart-box">
+            <h3>Posizione Richiesta vs. Attuale (<span id="current_pos_label"></span>)</h3>
+            <canvas id="positionChart"></canvas>
+        </div>
+
+        <div class="chart-box">
+            <h3>Duty Cycle PWM Corrente (<span id="current_pwm_label"></span>)</h3>
+            <canvas id="pwmChart"></canvas>
+        </div>
+        
+    </div>
+
+    <script>
+        
+        const MAX_HISTORY = 200; //20 seconds of history
+        const REFRESH_RATE = 100; //100 ms refresh rate
+        let timeLabels = [];
+
+        let dataActual = [];
+        let dataRequested = [];
+        let dataPwm = [];
+
+        // Initializing Position chart
+        const positionCtx = document.getElementById('positionChart').getContext('2d');
+        const positionChart = new Chart(positionCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { label: 'Requested Position', data: dataRequested, borderColor: 'rgb(255, 99, 132)', tension: 0.2, pointRadius: 0 },
+                    { label: 'Actual Position', data: dataActual, borderColor: 'rgb(75, 192, 192)', tension: 0.2, pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: false,
+                scales: { y: { beginAtZero: false } },
+                plugins: { legend: { display: true, position: 'top' } }
+            }
+        });
+
+        // Initializing PWM chart
+        const pwmCtx = document.getElementById('pwmChart').getContext('2d');
+        const pwmChart = new Chart(pwmCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { label: 'Duty Cycle PWM (-100% a +100%)', data: dataPwm, borderColor: 'rgb(54, 162, 235)', tension: 0.2, pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: false,
+                scales: { y: { beginAtZero: true, min: -100, max: 100 } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+
+        // updating function
+
+        async function fetchAndUpdateData(endpoint) {
+            try {
+                // calling flask webserver
+                const response = await fetch(`/api/data/${endpoint}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    return data.value;
+                } else {
+                    console.error(`Error in data retrieving for ${endpoint}: ${data.message}`);
+                    return null;
+                }
+            } catch (error) {
+                console.error(`Network error during fetch of ${endpoint}:`, error);
+                return null;
+            }
+        }
+
+        async function updateGraphs() {
+            // 1. Retrieving all data 
+            const [actual, requested, pwm] = await Promise.all([
+                fetchAndUpdateData('actual'),
+                fetchAndUpdateData('requested'),
+                fetchAndUpdateData('pwm')
+            ]);
+            
+            // 2. Update time labels
+            const currentTime = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 2 });
+            timeLabels.push(currentTime);
+
+            // 3. Add new data
+            dataActual.push(actual || 0); 
+            dataRequested.push(requested || 0); 
+            dataPwm.push(pwm ? (pwm / 500) * 100 : 0); // Normalizing PWM 
+            
+            // 4. Removing old data
+            if (timeLabels.length > MAX_HISTORY) {
+                timeLabels.shift();
+                dataActual.shift();
+                dataRequested.shift();
+                dataPwm.shift();
+            }
+
+            // 5. Update actual values 
+            document.getElementById('current_pos_label').textContent = `Actual: ${actual ? actual.toFixed(0) : 'N/A'}`;
+            document.getElementById('current_pwm_label').textContent = `Current: ${pwm ? ((pwm / 500) * 100).toFixed(1) : 'N/A'}%`;
+
+
+            // 6. Update graphs
+            positionChart.update();
+            pwmChart.update();
+        }
+
+        // executing automatic updating
+        setInterval(updateGraphs, REFRESH_RATE);
+        
+        // first update to fill the graphs
+        updateGraphs(); 
+
+    </script>
+</body>
+</html>

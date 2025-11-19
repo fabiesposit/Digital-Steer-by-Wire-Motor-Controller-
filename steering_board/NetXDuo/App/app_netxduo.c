@@ -315,7 +315,9 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 
 	// 1. initialization of the driver
 	ret = encoder_driver_initialize();
-
+	if(ret != "TX_SUCCESS"){
+		printf("[APP THREADX INIT] error in encoder driver initilization %u\n", ret);
+	}
 
 
 	// CREATE UDP socket
@@ -351,6 +353,9 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 
 		// 2. retrieving position from the encoder (int32)
 		ret = encoder_driver_input(&position);
+		if(ret!="TX_SUCCESS"){
+			printf("[APP THREADX INIT] error in encoder driver input %u\n", ret);
+		}
 
 		// casting int32 to unsigned 32 bit in order to force logical shift
 		// this is because we need to mantain the order of the bits when sending the data
