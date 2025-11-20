@@ -78,13 +78,13 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr);
 
 #define Nx_IP_INSTANCE_THREAD_SIZE           1024
 
-#define NX_APP_THREAD_PRIORITY               (PID_THREAD_PRIORITY + 2)
+#define NX_APP_THREAD_PRIORITY               10
 
 #ifndef NX_APP_INSTANCE_PRIORITY
-#define NX_APP_INSTANCE_PRIORITY             (NX_APP_THREAD_PRIORITY - 1)
+#define NX_APP_INSTANCE_PRIORITY             NX_APP_THREAD_PRIORITY
 #endif
 
-#define NX_APP_DEFAULT_IP_ADDRESS                   IP_ADDRESS(192, 168, 1, 1)
+#define NX_APP_DEFAULT_IP_ADDRESS                   IP_ADDRESS(192, 168, 1, 2)
 
 #define NX_APP_DEFAULT_NET_MASK                     IP_ADDRESS(255, 255, 255, 0)
 

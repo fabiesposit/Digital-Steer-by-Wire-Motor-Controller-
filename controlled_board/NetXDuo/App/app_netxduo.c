@@ -265,7 +265,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 	NX_PACKET *incoming_packet;
 	NX_PACKET *outcoming_packet;
 	ULONG ipAddress;
-	UINT localPort = 5000;
+	UINT localPort = 5001;
 	UINT port;
 
 	// waiting for SD card mount and then start the FTP server
