@@ -170,7 +170,7 @@ void pid_thread_entry(ULONG init)
 
 		float e = (float) (req_pos - act_pos); //error
 		float Pterm = PID_KP * e;
-
+		printf("[PID] req_pos: %d\n act_pos: %d\n error: %f\n", req_pos, act_pos, e);
 		integral += PID_KI * PID_SAMPLING_PERIOD_MS * e;
 
 		float Dterm = 0.0f;
@@ -184,6 +184,7 @@ void pid_thread_entry(ULONG init)
 
 		/*drive the motor*/
 		int16_t duty = (int16_t) u;
+		printf("[PID] duty: %d\n\n\n", duty);
 		ret = motor_driver_set_duty(duty);
 		if (ret != TX_SUCCESS)
 		{

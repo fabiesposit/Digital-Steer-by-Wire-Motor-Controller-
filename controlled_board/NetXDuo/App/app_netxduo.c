@@ -336,7 +336,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 	// start the loop
 	while (1)
 	{
-		// wait for one second or until the UDP is received
+		// wait until the UDP is received
 		ret = nx_udp_socket_receive(&UDPSocket, &incoming_packet, NX_WAIT_FOREVER);
 
 		if(ret != NX_SUCCESS){
@@ -358,6 +358,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 
 		/*position is signed to avoid discontinuities*/
 		int32_t pos = (int32_t)raw;
+		printf("[UDP SOCKET] Position requested: %d\n", pos);
 
 		ret = tx_mutex_get(&mutex_req_pos, TX_WAIT_FOREVER);
 		if(ret != TX_SUCCESS){
