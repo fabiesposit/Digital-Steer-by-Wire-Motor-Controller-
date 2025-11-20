@@ -40,7 +40,7 @@
 #define HTTP_SERVER_PORT			80
 #define IP_LINK_CHECK_THREAD_STACK_SIZE			1024
 #define IP_LINK_CHECK_THREAD_PRIORITY			12
-#define SAMPLING_TIME_STEERING	3
+#define SAMPLING_TIME_STEERING	10
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -315,7 +315,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 
 	// 1. initialization of the driver
 	ret = encoder_driver_initialize();
-	if(ret != "TX_SUCCESS"){
+	if(ret != TX_SUCCESS){
 		printf("[APP THREADX INIT] error in encoder driver initilization %u\n", ret);
 	}
 
@@ -353,7 +353,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 
 		// 2. retrieving position from the encoder (int32)
 		ret = encoder_driver_input(&position);
-		if(ret!="TX_SUCCESS"){
+		if(ret!= TX_SUCCESS){
 			printf("[APP THREADX INIT] error in encoder driver input %u\n", ret);
 		}
 
@@ -361,11 +361,19 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		// this is because we need to mantain the order of the bits when sending the data
 		// the protocol we are using is BIG ENDIAN, even if the boards are littne endian
 		position_unsigned = (ULONG)position;
-
+		printf("requested position: %u\n", position_unsigned);
 		position_to_send[0]= (UCHAR)(position_unsigned>>24);
+		printf("byte 0: %u\n", position_to_send[0]);
+
 		position_to_send[1]= (UCHAR)(position_unsigned>>16);
+		printf("byte 1: %u\n", position_to_send[1]);
+
 		position_to_send[2]= (UCHAR)(position_unsigned>>8);
+		printf("byte 2: %u\n", position_to_send[2]);
+
 		position_to_send[3]= (UCHAR)(position_unsigned>>0);
+		printf("byte 3: %u\n", position_to_send[3]);
+
 
 
 		/*
@@ -399,7 +407,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 
 		// append data to the packet
 		ret = nx_packet_data_append(outcoming_packet,(VOID*) position_to_send,
-				bytes_read, &NxAppPool, 100);
+				sizeof(position_to_send), &NxAppPool, 100);
 
 		if (ret != NX_SUCCESS)
 		{
