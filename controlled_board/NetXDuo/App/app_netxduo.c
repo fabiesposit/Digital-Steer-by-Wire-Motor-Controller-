@@ -330,7 +330,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 	}
 	else
 	{
-		printf("UDP socket listening on PORT 5000.\n");
+		printf("UDP socket listening on PORT %u.\n", localPort);
 	}
 
 	// start the loop

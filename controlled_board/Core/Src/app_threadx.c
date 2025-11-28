@@ -49,6 +49,8 @@ uint8_t tracex_buffer[TRACEX_BUFFER_SIZE];
 
 
 TX_THREAD pid_thread;
+TX_THREAD reader_thread;
+TX_THREAD motor_thread;
 
 int32_t requested_position;
 TX_MUTEX mutex_req_pos;
@@ -59,6 +61,9 @@ TX_MUTEX mutex_req_pos;
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
 void pid_thread_entry(ULONG init);
+void reader_thread_entry(ULONG init);
+//for playing with the motor and see how it works
+void motor_thread_entry(ULONG init);
 /* USER CODE END PFP */
 
 /**
@@ -72,12 +77,19 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   /* USER CODE BEGIN App_ThreadX_MEM_POOL */
   TX_BYTE_POOL *bytePool = (TX_BYTE_POOL *) memory_ptr;
   VOID *pointer;
+  VOID *pointer_reader_thread;
+  VOID *pointer_motor_thread;
 
   // stack allocation for PID thread
   ret = tx_byte_allocate(bytePool, &pointer, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
 
+  //stack allocation for reader thrad
+ // ret = tx_byte_allocate(bytePool, &pointer_reader_thread, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
+
+  //stack allocation for motor thrad
+ /* ret = tx_byte_allocate(bytePool, &pointer_motor_thread, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
   if (ret != TX_SUCCESS)
-    return ret;
+    return ret;*/
 
   ret = motor_driver_initialize();
   if(ret != TX_SUCCESS){
@@ -95,11 +107,20 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   }
 
   // PID thread create
-    ret = tx_thread_create(&pid_thread, "PID thread", pid_thread_entry, 1234,
+   ret = tx_thread_create(&pid_thread, "PID thread", pid_thread_entry, 1234,
   	  pointer, PID_THREAD_STACK_SIZE, PID_THREAD_PRIORITY, PID_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
+
+    //reader create
+   /* ret = tx_thread_create(&reader_thread, "Reader thread", reader_thread_entry, 1234,
+      	  pointer_reader_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
+*/
+    //ret = tx_thread_create(&motor_thread, "Motor thread", motor_thread_entry, 1234,
+          	  //pointer_motor_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
     if (ret != TX_SUCCESS)
       return ret;
+
+
 
 
 
@@ -184,7 +205,6 @@ void pid_thread_entry(ULONG init)
 
 		/*drive the motor*/
 		int16_t duty = (int16_t) u;
-		printf("[PID] duty: %d\n\n\n", duty);
 		ret = motor_driver_set_duty(duty);
 		if (ret != TX_SUCCESS)
 		{
@@ -192,6 +212,65 @@ void pid_thread_entry(ULONG init)
 		}
 
 
+		tx_thread_sleep(PID_SAMPLING_PERIOD_TICKS);
+	}
+}
+
+void reader_thread_entry(ULONG init){
+
+	UINT ret = TX_SUCCESS;
+	int32_t current_req_pos;
+	int32_t current_actual_pos;
+	int16_t current_duty;
+	while(1){
+		//read requested position
+		ret = tx_mutex_get(&mutex_req_pos, TX_WAIT_FOREVER);
+		if(ret != TX_SUCCESS){
+			printf("[READER] Error in getting the mutex %u\n", ret);
+			break;
+		}
+		current_req_pos = requested_position;
+		ret = tx_mutex_put(&mutex_req_pos);
+		printf("[READER] Current req_pos: %d\n", current_req_pos);
+
+		if(ret != TX_SUCCESS){
+			printf("[READER] error in putting the mutex\n");
+		}
+
+
+		ret = motor_driver_get_duty(&current_duty);
+		if(ret != TX_SUCCESS){
+			printf("[READER] Error in getting duty %u\n", ret);
+			break;
+		}
+		printf("[READER] Current duty: %d\n", current_duty);
+
+
+		ret = encoder_driver_input(&current_actual_pos);
+		printf("[READER] Current actual_pos: %d\n", current_actual_pos);
+
+		tx_thread_sleep(10*PID_SAMPLING_PERIOD_TICKS);
+
+	}
+}
+
+void motor_thread_entry(ULONG init){
+	int16_t duty;
+
+	duty = -20;
+
+	while(1){
+		if(duty >= 0){
+				TIM2->CCR3 = 0;
+				TIM2->CCR4 = (uint16_t) duty;
+			}
+		else{
+			TIM2->CCR3 = (uint16_t) (-duty);
+			TIM2->CCR4 = 0;
+		}
+		tx_thread_sleep(PID_SAMPLING_PERIOD_TICKS);
+		TIM2->CCR3 = 0;
+		TIM2->CCR4 = 0;
 		tx_thread_sleep(PID_SAMPLING_PERIOD_TICKS);
 	}
 }

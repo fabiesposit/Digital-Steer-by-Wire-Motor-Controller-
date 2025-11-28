@@ -40,13 +40,13 @@ UINT motor_driver_set_duty(int16_t duty){
 	current_duty = duty;
 
 	if(duty >= 0){
-		TIM2->CCR3 = 0;
-		TIM2->CCR4 = (uint16_t) duty;
+		TIM2->CCR4 = 0;
+		TIM2->CCR3 = (uint16_t) duty;
 		current_pwm = duty * 100 / MOTOR_PWM_MAX;
 	}
 	else{
-		TIM2->CCR3 = (uint16_t) (-duty);
-		TIM2->CCR4 = 0;
+		TIM2->CCR4 = (uint16_t) (-duty);
+		TIM2->CCR3 = 0;
 		current_pwm = -duty * 100 / MOTOR_PWM_MAX;
 	}
 
