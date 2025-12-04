@@ -56,7 +56,7 @@ int32_t requested_position;
 TX_MUTEX mutex_req_pos;
 
 TX_EVENT_FLAGS_GROUP pid_event_flags;
-
+extern TIM_HandleTypeDef htim3;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -85,7 +85,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   ret = tx_byte_allocate(bytePool, &pointer, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
 
   //stack allocation for reader thrad
- // ret = tx_byte_allocate(bytePool, &pointer_reader_thread, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
+  ret = tx_byte_allocate(bytePool, &pointer_reader_thread, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
 
   //stack allocation for motor thrad
  /* ret = tx_byte_allocate(bytePool, &pointer_motor_thread, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
@@ -112,14 +112,16 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
         printf("[APP THREADX INIT] error in event flags creation: %u\n", ret);
     }
 
+    HAL_TIM_Base_Start_IT(&htim3);
+
   // PID thread create
    ret = tx_thread_create(&pid_thread, "PID thread", pid_thread_entry, 1234,
   	  pointer, PID_THREAD_STACK_SIZE, PID_THREAD_PRIORITY, PID_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
     //reader create
-   /* ret = tx_thread_create(&reader_thread, "Reader thread", reader_thread_entry, 1234,
+    ret = tx_thread_create(&reader_thread, "Reader thread", reader_thread_entry, 1234,
       	  pointer_reader_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
-*/
+
     //ret = tx_thread_create(&motor_thread, "Motor thread", motor_thread_entry, 1234,
           	  //pointer_motor_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
@@ -162,6 +164,7 @@ void MX_ThreadX_Init(void)
 void pid_thread_entry(ULONG init)
 {
 	UINT ret;
+	ULONG actual_flags;
 	int32_t last_req_pos;
 	int32_t req_pos;
 	int32_t act_pos;
@@ -170,10 +173,11 @@ void pid_thread_entry(ULONG init)
 
 	while(1)
 	{
+
 		ret = tx_event_flags_get(&pid_event_flags,
 		                                 0x1,
 		                                 TX_OR_CLEAR,
-		                                 &pid_event_flags,
+		                                 &actual_flags,
 		                                 TX_WAIT_FOREVER);
 		if (ret != TX_SUCCESS) {
 			printf("[PID] error in event_flags_get: %u\n", ret);
@@ -206,7 +210,7 @@ void pid_thread_entry(ULONG init)
 
 		float e = (float) (req_pos - act_pos); //error
 		float Pterm = PID_KP * e;
-		printf("[PID] req_pos: %d\n act_pos: %d\n error: %f\n", req_pos, act_pos, e);
+		//("[PID] req_pos: %d\n act_pos: %d\n error: %f\n", req_pos, act_pos, e);
 		integral += PID_KI * PID_SAMPLING_PERIOD_MS * e;
 
 		float Dterm = 0.0f;
@@ -225,6 +229,8 @@ void pid_thread_entry(ULONG init)
 		{
 			printf("[PID] Error in motor_driver_set_duty: %u\n", ret);
 		}
+
+		//tx_thread_sleep(PID_SAMPLING_PERIOD_TICKS);
 
 	}
 }

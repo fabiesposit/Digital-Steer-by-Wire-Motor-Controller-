@@ -633,8 +633,12 @@ void MPU_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
+	UINT ret;
 	if (htim->Instance == TIM3) {
-	        tx_event_flags_set(&pid_event_flags, 0x1, TX_OR);
+	        ret = tx_event_flags_set(&pid_event_flags, 0x1, TX_OR);
+	        if(ret != TX_SUCCESS){
+	        	printf("ISR: error in setting the flag: %u\n", ret);
+	        }
 	    }
 
   /* USER CODE END Callback 0 */

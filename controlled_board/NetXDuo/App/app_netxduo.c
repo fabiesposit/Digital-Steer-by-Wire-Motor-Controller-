@@ -343,12 +343,12 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 			printf("Error in nx_udp_socket_receive: %u\n", ret);
 		}
 
-		printf("[UDP SOCKET] Socket received\n");
+		//printf("[UDP SOCKET] Socket received\n");
 
 		//retrieving the position
 		UCHAR *data = incoming_packet->nx_packet_prepend_ptr;
-		printf("[UDP SOCKET]: Raw bytes: %02X %02X %02X %02X\n",
-		       data[0], data[1], data[2], data[3]);
+		//printf("[UDP SOCKET]: Raw bytes: %02X %02X %02X %02X\n",
+		       //data[0], data[1], data[2], data[3]);
 
 		uint32_t raw =
 		    ((uint32_t)data[0] << 24) |
@@ -358,7 +358,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 
 		/*position is signed to avoid discontinuities*/
 		int32_t pos = (int32_t)raw;
-		printf("[UDP SOCKET] Position requested: %d\n", pos);
+		//printf("[UDP SOCKET] Position requested: %d\n", pos);
 
 		ret = tx_mutex_get(&mutex_req_pos, TX_WAIT_FOREVER);
 		if(ret != TX_SUCCESS){
@@ -372,7 +372,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 							return;
 						}
 
-		printf("[UDP SOCKET] Position updated succesfully\n");
+		//printf("[UDP SOCKET] Position updated succesfully\n");
 
 		ret = nx_packet_release(incoming_packet);
 		if(ret != NX_SUCCESS){
