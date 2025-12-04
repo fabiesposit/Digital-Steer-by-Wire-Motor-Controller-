@@ -55,6 +55,7 @@ TX_THREAD motor_thread;
 int32_t requested_position;
 TX_MUTEX mutex_req_pos;
 
+TX_EVENT_FLAGS_GROUP pid_event_flags;
 
 /* USER CODE END PV */
 
@@ -105,6 +106,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   if(ret != TX_SUCCESS){
 	  printf("[APP THREADX INITI] error in mutex creation: %u\n", ret);
   }
+
+  ret = tx_event_flags_create(&pid_event_flags, "PID event flags");
+    if (ret != TX_SUCCESS) {
+        printf("[APP THREADX INIT] error in event flags creation: %u\n", ret);
+    }
 
   // PID thread create
    ret = tx_thread_create(&pid_thread, "PID thread", pid_thread_entry, 1234,
@@ -164,6 +170,15 @@ void pid_thread_entry(ULONG init)
 
 	while(1)
 	{
+		ret = tx_event_flags_get(&pid_event_flags,
+		                                 0x1,
+		                                 TX_OR_CLEAR,
+		                                 &pid_event_flags,
+		                                 TX_WAIT_FOREVER);
+		if (ret != TX_SUCCESS) {
+			printf("[PID] error in event_flags_get: %u\n", ret);
+			continue;
+		}
 		ret = tx_mutex_get(&mutex_req_pos, TX_NO_WAIT);
 		if(ret == TX_SUCCESS){
 			req_pos = requested_position;
@@ -211,8 +226,6 @@ void pid_thread_entry(ULONG init)
 			printf("[PID] Error in motor_driver_set_duty: %u\n", ret);
 		}
 
-
-		tx_thread_sleep(PID_SAMPLING_PERIOD_TICKS);
 	}
 }
 
