@@ -60,6 +60,7 @@ CHAR *ftpServerStack;
 
 extern TX_SEMAPHORE sdMountDone;
 extern FX_MEDIA        sdio_disk;
+extern TX_EVENT_FLAGS_GROUP event_flag;
 
 NX_WEB_HTTP_SERVER httpServer;
 CHAR *httpServerStack;
@@ -347,9 +348,15 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		printf("UDP Server listening on PORT 5000.\n");
 	}
 
+	ULONG actual_flags;
 	// start the loop
 	while (1)
 	{
+		ret = tx_event_flags_get(&event_flag, 0x1, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+		if(ret != TX_SUCCESS){
+			printf("[UDP] error in event flags get %u\n", ret);
+			continue;
+		}
 
 		// 2. retrieving position from the encoder (int32)
 		ret = encoder_driver_input(&position);
@@ -361,18 +368,18 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		// this is because we need to mantain the order of the bits when sending the data
 		// the protocol we are using is BIG ENDIAN, even if the boards are littne endian
 		position_unsigned = (ULONG)position;
-		printf("requested position: %u\n", position_unsigned);
+		//printf("requested position: %u\n", position_unsigned);
 		position_to_send[0]= (UCHAR)(position_unsigned>>24);
-		printf("byte 0: %u\n", position_to_send[0]);
+		//printf("byte 0: %u\n", position_to_send[0]);
 
 		position_to_send[1]= (UCHAR)(position_unsigned>>16);
-		printf("byte 1: %u\n", position_to_send[1]);
+		//printf("byte 1: %u\n", position_to_send[1]);
 
 		position_to_send[2]= (UCHAR)(position_unsigned>>8);
-		printf("byte 2: %u\n", position_to_send[2]);
+		//printf("byte 2: %u\n", position_to_send[2]);
 
 		position_to_send[3]= (UCHAR)(position_unsigned>>0);
-		printf("byte 3: %u\n", position_to_send[3]);
+		//printf("byte 3: %u\n", position_to_send[3]);
 
 
 
@@ -424,15 +431,15 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 			// in the case of socket send failure we MUST release the outcoming packet!
 			printf("UDP send error %02x\n", ret);
 			nx_packet_release(outcoming_packet);
-		}
+		}/*
 		else
 		{
 			// in the case of socket success we MUST NOT release the outcoming packet!
 			printf("UDP send successfully\n");
-		}
+		}*/
 
 		// sampling time of the driver
-		tx_thread_sleep(SAMPLING_TIME_STEERING);
+		//(SAMPLING_TIME_STEERING);
 
 	}
 

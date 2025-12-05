@@ -1,7 +1,8 @@
 from flask import Flask, render_template, jsonify
 import requests
 
-controlled_board_IP = "192.168.1.2"
+#controlled_board_IP = "192.168.1.2"
+controlled_board_IP = "localhost"
 controlled_board_port = 5001
 controlled_board_url = f"http://{controlled_board_IP}:{controlled_board_port}"
 
@@ -37,4 +38,4 @@ def api_data_proxy(endpoint):
     
 if __name__ == '__main__':
     print(f"FLASK WEB SERVER EXECUTING ON PORT: {controlled_board_port}\n")
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5002)
