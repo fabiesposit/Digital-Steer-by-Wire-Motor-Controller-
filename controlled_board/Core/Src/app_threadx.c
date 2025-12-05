@@ -119,8 +119,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   	  pointer, PID_THREAD_STACK_SIZE, PID_THREAD_PRIORITY, PID_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
     //reader create
-    ret = tx_thread_create(&reader_thread, "Reader thread", reader_thread_entry, 1234,
-      	  pointer_reader_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
+    //ret = tx_thread_create(&reader_thread, "Reader thread", reader_thread_entry, 1234,
+      	  //pointer_reader_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
     //ret = tx_thread_create(&motor_thread, "Motor thread", motor_thread_entry, 1234,
           	  //pointer_motor_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
