@@ -30,6 +30,7 @@
 #include "app_threadx.h"
 #include "encoder_driver.h"
 #include "motor_driver.h"
+#include "signal_logger.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -417,73 +418,90 @@ UINT http_request_notify(NX_WEB_HTTP_SERVER *server_ptr,
     }
 
 
+    /* Nuovo endpoint generico: /data
+       Raccoglie gli ultimi 20 campioni e li restituisce in JSON */
+    if (memcmp(resource, "/data", 5) == 0)
+    {
+        sample_t samples[LOG_LEN];
+        UINT ret = signal_logger_get_last_samples(samples);
+        if (ret != TX_SUCCESS)
+        {
+            printf("[HTTP] Error retrieving samples: %u\n", ret);
+        }
+
+        /* Costruzione del corpo JSON: {"dt_ms":5,"actual":[...],"requested":[...],"pwm":[...]} */
+        char body[1024] = {0};
+        UINT pos = 0;
+        int written;
+
+        /* periodo di campionamento (5 ms) */
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "{\"dt_ms\":5,\"actual\":[");
+        pos += (UINT)written;
+
+        for (UINT i = 0; i < LOG_LEN; ++i)
+        {
+            written = snprintf(&body[pos], sizeof(body) - pos,
+                               "%ld%s",
+                               (long)samples[i].actual,
+                               (i < LOG_LEN - 1U) ? "," : "");
+            pos += (UINT)written;
+        }
+
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "],\"requested\":[");
+        pos += (UINT)written;
+
+        for (UINT i = 0; i < LOG_LEN; ++i)
+        {
+            written = snprintf(&body[pos], sizeof(body) - pos,
+                               "%ld%s",
+                               (long)samples[i].requested,
+                               (i < LOG_LEN - 1U) ? "," : "");
+            pos += (UINT)written;
+        }
+
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "],\"pwm\":[");
+        pos += (UINT)written;
+
+        for (UINT i = 0; i < LOG_LEN; ++i)
+        {
+            written = snprintf(&body[pos], sizeof(body) - pos,
+                               "%d%s",
+                               (int)samples[i].pwm,
+                               (i < LOG_LEN - 1U) ? "," : "");
+            pos += (UINT)written;
+        }
+
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "]}\r\n");
+        pos += (UINT)written;
+
+        /* Invia la risposta HTTP con contenuto JSON */
+        return nx_web_http_server_callback_response_send(
+            server_ptr,
+            "200 OK",
+            body,
+            NX_NULL);
+    }
+
+    /* Compatibilità con i vecchi endpoint singoli */
     if (memcmp(resource, "/actual", 7) == 0)
     {
-    	int32_t actual_pos;
-    	char  body[32];
-    	UINT ret;
-
-    	ret = encoder_driver_input(&actual_pos);
-    	if(ret != TX_SUCCESS){
-    		printf("[HTTP] Error in encoder driver input: %u\n", ret);
-    	}
-
-    	UINT  len = (UINT)snprintf(body, sizeof(body), "%ld\r\n", (long)actual_pos);
-    	return nx_web_http_server_callback_response_send(
-    	                    server_ptr,
-    	                    "200 OK",
-    	                    body,
-    	                    NX_NULL);
-
-
-    }
-
-    if(memcmp(resource, "/requested", 10) == 0){
-    	int32_t req_pos;
-    	char body[32];
-    	UINT ret;
-
-    	ret = tx_mutex_get(&mutex_req_pos, TX_WAIT_FOREVER);
-		if(ret != TX_SUCCESS){
-			printf("[HTTP SERVER]: Error in getting the mutex: %u\n", ret);
-			return;
-		}
-
-		req_pos = requested_position;
-
-		ret = tx_mutex_put(&mutex_req_pos);
-		if(ret != TX_SUCCESS){
-			printf("[HTTP SERVER]: Error in putting the mutex: %u\n", ret);
-			return;
-		}
-
-    	UINT  len = (UINT)snprintf(body, sizeof(body), "%ld\r\n", (long)req_pos);
-		return nx_web_http_server_callback_response_send(
-							server_ptr,
-							"200 OK",
-							body,
-							NX_NULL);
-
-
-    }
-
-    if(memcmp(resource, "/pwm", 4) == 0){
-    	uint16_t pwm;
-    	char body[32];
-    	UINT ret;
-
-    	ret = motor_driver_get_pwm(&pwm);
-    	if(ret != TX_SUCCESS){
-    		printf("[HTTP] Error in motor driver get pwm: %u", ret);
-    	}
-
-    	UINT  len = (UINT)snprintf(body, sizeof(body), "%u\r\n", pwm);
-		return nx_web_http_server_callback_response_send(
-							server_ptr,
-							"200 OK",
-							body,
-							NX_NULL);
-
+        int32_t actual_pos;
+        char body[32];
+        UINT ret = encoder_driver_input(&actual_pos);
+        if (ret != TX_SUCCESS)
+        {
+            printf("[HTTP] Error in encoder driver input: %u\n", ret);
+        }
+        snprintf(body, sizeof(body), "%ld\r\n", (long)actual_pos);
+        return nx_web_http_server_callback_response_send(
+            server_ptr,
+            "200 OK",
+            body,
+            NX_NULL);
     }
 
     return NX_SUCCESS;

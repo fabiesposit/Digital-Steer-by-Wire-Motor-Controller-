@@ -26,6 +26,7 @@
 #include "main.h"
 #include "motor_driver.h"
 #include "encoder_driver.h"
+#include "signal_logger.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,6 +52,7 @@ uint8_t tracex_buffer[TRACEX_BUFFER_SIZE];
 TX_THREAD pid_thread;
 TX_THREAD reader_thread;
 TX_THREAD motor_thread;
+TX_THREAD logger_thread;
 
 int32_t requested_position;
 TX_MUTEX mutex_req_pos;
@@ -63,6 +65,7 @@ extern TIM_HandleTypeDef htim3;
 /* USER CODE BEGIN PFP */
 void pid_thread_entry(ULONG init);
 void reader_thread_entry(ULONG init);
+extern void signal_logger_thread_entry(ULONG thread_input);
 //for playing with the motor and see how it works
 void motor_thread_entry(ULONG init);
 /* USER CODE END PFP */
@@ -80,6 +83,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   VOID *pointer;
   VOID *pointer_reader_thread;
   VOID *pointer_motor_thread;
+  VOID *pointer_logger_thread;
 
   // stack allocation for PID thread
   ret = tx_byte_allocate(bytePool, &pointer, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
@@ -92,6 +96,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   if (ret != TX_SUCCESS)
     return ret;*/
 
+
+  //stack allocation for logger thread;
+  ret = tx_byte_allocate(bytePool, &pointer_logger_thread, PID_THREAD_STACK_SIZE, TX_NO_WAIT);
+  if(ret != TX_SUCCESS){
+	  printf("[APP THREADX INIT] error in byte allocate %u\n", ret);
+  }
+
   ret = motor_driver_initialize();
   if(ret != TX_SUCCESS){
 	  printf("[APP THREADX INIT] error in motor driver initialize: %u\n", ret);
@@ -101,6 +112,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
     if(ret != TX_SUCCESS){
   	  printf("[APP THREADX INIT] error in encoder driver initialize: %u\n", ret);
     }
+
+   ret = signal_logger_init();
+   if(ret != TX_SUCCESS){
+	   printf("[APP THREADX INIT] error in signal logger init %u\n", ret);
+   }
 
   ret = tx_mutex_create(&mutex_req_pos, "mutex requested position", TX_INHERIT);
   if(ret != TX_SUCCESS){
@@ -117,19 +133,23 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   // PID thread create
    ret = tx_thread_create(&pid_thread, "PID thread", pid_thread_entry, 1234,
   	  pointer, PID_THREAD_STACK_SIZE, PID_THREAD_PRIORITY, PID_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
-
+   if(ret != TX_SUCCESS){
+	   printf("[APP THREADX INIT] error in tx_thread create %u\n", ret);
+   }
     //reader create
     //ret = tx_thread_create(&reader_thread, "Reader thread", reader_thread_entry, 1234,
       	  //pointer_reader_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
+   //motor create
     //ret = tx_thread_create(&motor_thread, "Motor thread", motor_thread_entry, 1234,
           	  //pointer_motor_thread, PID_THREAD_STACK_SIZE, READER_THREAD_PRIORITY, READER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
-    if (ret != TX_SUCCESS)
-      return ret;
-
-
-
+   //logger thread create
+   ret = tx_thread_create(&logger_thread, "logger thread", signal_logger_thread_entry, 1234,
+		   	   pointer_logger_thread, PID_THREAD_STACK_SIZE, LOGGER_THREAD_PRIORITY, LOGGER_THREAD_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
+   if(ret != TX_SUCCESS){
+   	   printf("[APP THREADX INIT] error in tx_thread create %u\n", ret);
+      }
 
 
   /* USER CODE END App_ThreadX_MEM_POOL */
