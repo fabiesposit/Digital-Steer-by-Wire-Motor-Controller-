@@ -48,8 +48,6 @@
 uint8_t tracex_buffer[TRACEX_BUFFER_SIZE];
 
 TX_THREAD led_thread;
-TX_EVENT_FLAGS_GROUP event_flag;
-extern TIM_HandleTypeDef htim3;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -82,13 +80,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
   if (ret != TX_SUCCESS)
     return ret;
-
-  ret = tx_event_flags_create(&event_flag, "event flag");
-  if(ret != TX_SUCCESS){
-	  printf("[INIT] error in event flags create %u\n", ret);
-  }
-
-  HAL_TIM_Base_Start_IT(&htim3);
 
 
   /* USER CODE END App_ThreadX_MEM_POOL */

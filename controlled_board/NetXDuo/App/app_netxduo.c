@@ -27,6 +27,10 @@
 #include "nxd_ftp_server.h"
 #include "nx_web_http_server.h"
 #include "main.h"
+#include "app_threadx.h"
+#include "encoder_driver.h"
+#include "motor_driver.h"
+#include "signal_logger.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +63,9 @@ CHAR *ftpServerStack;
 extern TX_SEMAPHORE sdMountDone;
 extern FX_MEDIA        sdio_disk;
 
+extern int32_t requested_position;
+extern TX_MUTEX mutex_req_pos;
+
 NX_WEB_HTTP_SERVER httpServer;
 CHAR *httpServerStack;
 
@@ -71,6 +78,7 @@ static NX_WEB_HTTP_SERVER_MIME_MAP app_mime_maps[] =
   {"ico", "image/x-icon"},
   {"js", "text/javascript"}
 };
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -258,6 +266,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 	NX_PACKET *incoming_packet;
 	NX_PACKET *outcoming_packet;
 	ULONG ipAddress;
+	UINT localPort = 5001;
 	UINT port;
 
 	// waiting for SD card mount and then start the FTP server
@@ -311,7 +320,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 	}
 
 	// bind the socket to the port 5000 - this is the nucleo board local port
-	ret = nx_udp_socket_bind(&UDPSocket, 5000, TX_WAIT_FOREVER);
+	ret = nx_udp_socket_bind(&UDPSocket, localPort, TX_WAIT_FOREVER);
 	if (ret != NX_SUCCESS)
 	{
 		printf("Binding error. %02X\n", ret);
@@ -322,67 +331,56 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 	}
 	else
 	{
-		printf("UDP Server listening on PORT 5000.\n");
+		printf("UDP socket listening on PORT %u.\n", localPort);
 	}
 
 	// start the loop
 	while (1)
 	{
-		// wait for one second or until the UDP is received
-		ret = nx_udp_socket_receive(&UDPSocket, &incoming_packet, 100);
+		// wait until the UDP is received
+		ret = nx_udp_socket_receive(&UDPSocket, &incoming_packet, NX_WAIT_FOREVER);
 
-		if (ret == NX_SUCCESS)
-		{
-			// if packet has been successfully received, then retrieved the data into local buffer
-			ret = nx_packet_data_retrieve(incoming_packet, data_buffer, &bytes_read);
-
-			if (ret == NX_SUCCESS)
-			{
-				// get the source IP address and port
-				nx_udp_source_extract(incoming_packet, &ipAddress, &port);
-				printf("Socket received %d bytes from %d.%d.%d.%d:%d\n",
-						(int) bytes_read, (int) (ipAddress >> 24) & 0xFF, (int) (ipAddress >> 16) & 0xFF,
-						(int) (ipAddress >> 8) & 0xFF, (int) ipAddress & 0xFF, port);
-
-				// allocate packet for reply
-				ret = nx_packet_allocate(&NxAppPool, &outcoming_packet, NX_UDP_PACKET, 100);
-				if (ret != NX_SUCCESS)
-				{
-					// if error has been detected, print the error code and jump to the beginning of the while loop commands
-					printf("Packet allocate error %02x\n", ret);
-					continue;
-				}
-
-				// append data to the packet
-				ret = nx_packet_data_append(outcoming_packet, data_buffer,
-						bytes_read, &NxAppPool, 100);
-
-				if (ret != NX_SUCCESS)
-				{
-					// if error has been detected, print the error code and jump to the beginning of the while loop commands
-					printf("Packet append error %02x\n", ret);
-					continue;
-				}
-
-				// send the data to the IP address and port which has been extracted from the incoming packet
-				ret = nx_udp_socket_send(&UDPSocket, outcoming_packet,	ipAddress, port);
-				if (ret != NX_SUCCESS)
-				{
-					// in the case of socket send failure we MUST release the outcoming packet!
-					printf("UDP send error %02x\n", ret);
-					nx_packet_release(outcoming_packet);
-				}
-				else
-				{
-					// in the case of socket success we MUST NOT release the outcoming packet!
-					printf("UDP send successfully\n");
-				}
-			}
-
-			// we MUST always release the incoming packet
-			nx_packet_release(incoming_packet);
-			printf("Packets available %d\n\n", (int) NxAppPool.nx_packet_pool_available);
+		if(ret != NX_SUCCESS){
+			printf("Error in nx_udp_socket_receive: %u\n", ret);
 		}
+
+		//printf("[UDP SOCKET] Socket received\n");
+
+		//retrieving the position
+		UCHAR *data = incoming_packet->nx_packet_prepend_ptr;
+		//printf("[UDP SOCKET]: Raw bytes: %02X %02X %02X %02X\n",
+		       //data[0], data[1], data[2], data[3]);
+
+		uint32_t raw =
+		    ((uint32_t)data[0] << 24) |
+		    ((uint32_t)data[1] << 16) |
+		    ((uint32_t)data[2] << 8 ) |
+		    ((uint32_t)data[3]);
+
+		/*position is signed to avoid discontinuities*/
+		int32_t pos = (int32_t)raw;
+		//printf("[UDP SOCKET] Position requested: %d\n", pos);
+
+		ret = tx_mutex_get(&mutex_req_pos, TX_WAIT_FOREVER);
+		if(ret != TX_SUCCESS){
+					printf("[UDP SOCKET]: Error in getting the mutex: %u\n", ret);
+					return;
+				}
+		requested_position = pos;
+		ret = tx_mutex_put(&mutex_req_pos);
+				if(ret != TX_SUCCESS){
+							printf("[UDP SOCKET]: Error in putting the mutex: %u\n", ret);
+							return;
+						}
+
+		//printf("[UDP SOCKET] Position updated succesfully\n");
+
+		ret = nx_packet_release(incoming_packet);
+		if(ret != NX_SUCCESS){
+			printf("[UDP SOCKET] Error in nx_packet_release: %u\n", ret);
+		}
+
+
 	}
 
   /* USER CODE END Nx_App_Thread_Entry 0 */
@@ -419,24 +417,91 @@ UINT http_request_notify(NX_WEB_HTTP_SERVER *server_ptr,
         return NX_SUCCESS;
     }
 
-    if (memcmp(resource, "/LED", 4) == 0)
+
+    /* Nuovo endpoint generico: /data
+       Raccoglie gli ultimi 20 campioni e li restituisce in JSON */
+    if (memcmp(resource, "/data", 5) == 0)
     {
-    	if (resource[4] == '1')
-    	{
-    		// button LED1 pressed
-    	}
+        sample_t samples[LOG_LEN];
+        UINT ret = signal_logger_get_last_samples(samples);
+        if (ret != TX_SUCCESS)
+        {
+            printf("[HTTP] Error retrieving samples: %u\n", ret);
+        }
 
-    	if (resource[4] == '2')
-    	{
-    		// button LED2 pressed
-    	}
+        /* Costruzione del corpo JSON: {"dt_ms":5,"actual":[...],"requested":[...],"pwm":[...]} */
+        char body[1024] = {0};
+        UINT pos = 0;
+        int written;
 
-    	if (resource[4] == '3')
-		{
-    		// button LED3 pressed
-		}
+        /* periodo di campionamento (5 ms) */
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "{\"dt_ms\":5,\"actual\":[");
+        pos += (UINT)written;
 
-    	return NX_SUCCESS;
+        for (UINT i = 0; i < LOG_LEN; ++i)
+        {
+            written = snprintf(&body[pos], sizeof(body) - pos,
+                               "%ld%s",
+                               (long)samples[i].actual,
+                               (i < LOG_LEN - 1U) ? "," : "");
+            pos += (UINT)written;
+        }
+
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "],\"requested\":[");
+        pos += (UINT)written;
+
+        for (UINT i = 0; i < LOG_LEN; ++i)
+        {
+            written = snprintf(&body[pos], sizeof(body) - pos,
+                               "%ld%s",
+                               (long)samples[i].requested,
+                               (i < LOG_LEN - 1U) ? "," : "");
+            pos += (UINT)written;
+        }
+
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "],\"pwm\":[");
+        pos += (UINT)written;
+
+        for (UINT i = 0; i < LOG_LEN; ++i)
+        {
+            written = snprintf(&body[pos], sizeof(body) - pos,
+                               "%d%s",
+                               (int)samples[i].pwm,
+                               (i < LOG_LEN - 1U) ? "," : "");
+            pos += (UINT)written;
+        }
+
+        written = snprintf(&body[pos], sizeof(body) - pos,
+                           "]}\r\n");
+        pos += (UINT)written;
+
+        /* Invia la risposta HTTP con contenuto JSON */
+        return nx_web_http_server_callback_response_send(
+            server_ptr,
+            "200 OK",
+            body,
+            NX_NULL);
+    }
+
+    /* Compatibilità con i vecchi endpoint singoli */
+    if (memcmp(resource, "/actual", 7) == 0)
+    {
+        int32_t actual_pos;
+        char body[32];
+        UINT ret = encoder_driver_input(&actual_pos);
+        if (ret != TX_SUCCESS)
+        {
+            printf("[HTTP] Error in encoder driver input: %u\n", ret);
+        }
+        snprintf(body, sizeof(body), "%ld\r\n", (long)actual_pos);
+        return nx_web_http_server_callback_response_send(
+            server_ptr,
+            "200 OK",
+            body,
+            NX_NULL);
     }
 
     return NX_SUCCESS;
