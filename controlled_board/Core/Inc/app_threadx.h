@@ -57,7 +57,7 @@ extern "C" {
 
 
 /* PID gains  */
-#define PID_KP                      0.75f
+#define PID_KP                      4.0f
 #define PID_KI                      0.0f
 #define PID_KD                      0.0f
 /* USER CODE END PD */
