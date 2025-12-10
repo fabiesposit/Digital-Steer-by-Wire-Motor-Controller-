@@ -27,6 +27,7 @@
 #include "nxd_ftp_server.h"
 #include "nx_web_http_server.h"
 #include "main.h"
+#include "encoder_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,6 +40,7 @@
 #define HTTP_SERVER_PORT			80
 #define IP_LINK_CHECK_THREAD_STACK_SIZE			1024
 #define IP_LINK_CHECK_THREAD_PRIORITY			12
+#define SAMPLING_TIME_STEERING	10
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,6 +60,7 @@ CHAR *ftpServerStack;
 
 extern TX_SEMAPHORE sdMountDone;
 extern FX_MEDIA        sdio_disk;
+extern TX_EVENT_FLAGS_GROUP event_flag;
 
 NX_WEB_HTTP_SERVER httpServer;
 CHAR *httpServerStack;
@@ -260,6 +263,14 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 	ULONG ipAddress;
 	UINT port;
 
+	ULONG steering_board_address = IP_ADDRESS(192, 168, 1, 1);
+	UINT steering_board_port = 5000;
+
+	ULONG controlled_board_address = IP_ADDRESS(192, 168, 1, 2);
+	UINT controlled_board_port = 5001;
+
+	UCHAR position_to_send[4];
+
 	// waiting for SD card mount and then start the FTP server
 	ret = tx_semaphore_get(&sdMountDone, TX_WAIT_FOREVER);
 	if (ret == TX_SUCCESS)
@@ -299,7 +310,18 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		}
 	}
 
-	// create UDP socket
+
+	int32_t position;
+	ULONG position_unsigned;
+
+	// 1. initialization of the driver
+	ret = encoder_driver_initialize();
+	if(ret != TX_SUCCESS){
+		printf("[APP THREADX INIT] error in encoder driver initilization %u\n", ret);
+	}
+
+
+	// CREATE UDP socket
 	ret = nx_udp_socket_create(&NetXDuoEthIpInstance, &UDPSocket, "UDP Server Socket", NX_IP_NORMAL, NX_FRAGMENT_OKAY, NX_IP_TIME_TO_LIVE, 2);
 	if (ret != NX_SUCCESS)
 	{
@@ -310,8 +332,9 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		}
 	}
 
-	// bind the socket to the port 5000 - this is the nucleo board local port
-	ret = nx_udp_socket_bind(&UDPSocket, 5000, TX_WAIT_FOREVER);
+
+	// BIND the socket to the port steering_board_port (5000) - this is the nucleo board local port
+	ret = nx_udp_socket_bind(&UDPSocket, steering_board_port, TX_WAIT_FOREVER);
 	if (ret != NX_SUCCESS)
 	{
 		printf("Binding error. %02X\n", ret);
@@ -325,9 +348,42 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 		printf("UDP Server listening on PORT 5000.\n");
 	}
 
+	ULONG actual_flags;
 	// start the loop
 	while (1)
 	{
+		ret = tx_event_flags_get(&event_flag, 0x1, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+		if(ret != TX_SUCCESS){
+			printf("[UDP] error in event flags get %u\n", ret);
+			continue;
+		}
+
+		// 2. retrieving position from the encoder (int32)
+		ret = encoder_driver_input(&position);
+		if(ret!= TX_SUCCESS){
+			printf("[APP THREADX INIT] error in encoder driver input %u\n", ret);
+		}
+
+		// casting int32 to unsigned 32 bit in order to force logical shift
+		// this is because we need to mantain the order of the bits when sending the data
+		// the protocol we are using is BIG ENDIAN, even if the boards are littne endian
+		position_unsigned = (ULONG)position;
+		//printf("requested position: %u\n", position_unsigned);
+		position_to_send[0]= (UCHAR)(position_unsigned>>24);
+		//printf("byte 0: %u\n", position_to_send[0]);
+
+		position_to_send[1]= (UCHAR)(position_unsigned>>16);
+		//printf("byte 1: %u\n", position_to_send[1]);
+
+		position_to_send[2]= (UCHAR)(position_unsigned>>8);
+		//printf("byte 2: %u\n", position_to_send[2]);
+
+		position_to_send[3]= (UCHAR)(position_unsigned>>0);
+		//printf("byte 3: %u\n", position_to_send[3]);
+
+
+
+		/*
 		// wait for one second or until the UDP is received
 		ret = nx_udp_socket_receive(&UDPSocket, &incoming_packet, 100);
 
@@ -344,50 +400,57 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 						(int) bytes_read, (int) (ipAddress >> 24) & 0xFF, (int) (ipAddress >> 16) & 0xFF,
 						(int) (ipAddress >> 8) & 0xFF, (int) ipAddress & 0xFF, port);
 
-				// allocate packet for reply
-				ret = nx_packet_allocate(&NxAppPool, &outcoming_packet, NX_UDP_PACKET, 100);
-				if (ret != NX_SUCCESS)
-				{
-					// if error has been detected, print the error code and jump to the beginning of the while loop commands
-					printf("Packet allocate error %02x\n", ret);
-					continue;
-				}
+				*/
 
-				// append data to the packet
-				ret = nx_packet_data_append(outcoming_packet, data_buffer,
-						bytes_read, &NxAppPool, 100);
+		// allocate packet for reply
 
-				if (ret != NX_SUCCESS)
-				{
-					// if error has been detected, print the error code and jump to the beginning of the while loop commands
-					printf("Packet append error %02x\n", ret);
-					continue;
-				}
-
-				// send the data to the IP address and port which has been extracted from the incoming packet
-				ret = nx_udp_socket_send(&UDPSocket, outcoming_packet,	ipAddress, port);
-				if (ret != NX_SUCCESS)
-				{
-					// in the case of socket send failure we MUST release the outcoming packet!
-					printf("UDP send error %02x\n", ret);
-					nx_packet_release(outcoming_packet);
-				}
-				else
-				{
-					// in the case of socket success we MUST NOT release the outcoming packet!
-					printf("UDP send successfully\n");
-				}
-			}
-
-			// we MUST always release the incoming packet
-			nx_packet_release(incoming_packet);
-			printf("Packets available %d\n\n", (int) NxAppPool.nx_packet_pool_available);
+		ret = nx_packet_allocate(&NxAppPool, &outcoming_packet, NX_UDP_PACKET, 100);
+		if (ret != NX_SUCCESS)
+		{
+			// if error has been detected, print the error code and jump to the beginning of the while loop commands
+			printf("Packet allocate error %02x\n", ret);
+			continue;
 		}
+
+		// append data to the packet
+		ret = nx_packet_data_append(outcoming_packet,(VOID*) position_to_send,
+				sizeof(position_to_send), &NxAppPool, 100);
+
+		if (ret != NX_SUCCESS)
+		{
+			// if error has been detected, print the error code and jump to the beginning of the while loop commands
+			printf("Packet append error %02x\n", ret);
+			continue;
+		}
+
+		// 2. sending the position using UDP socket towards the other board
+
+		ret = nx_udp_socket_send(&UDPSocket, outcoming_packet,	controlled_board_address, controlled_board_port);
+		if (ret != NX_SUCCESS)
+		{
+			// in the case of socket send failure we MUST release the outcoming packet!
+			printf("UDP send error %02x\n", ret);
+			nx_packet_release(outcoming_packet);
+		}/*
+		else
+		{
+			// in the case of socket success we MUST NOT release the outcoming packet!
+			printf("UDP send successfully\n");
+		}*/
+
+		// sampling time of the driver
+		//(SAMPLING_TIME_STEERING);
+
 	}
+
+		// we MUST always release the incoming packet
+		nx_packet_release(incoming_packet);
+		printf("Packets available %d\n\n", (int) NxAppPool.nx_packet_pool_available);
+	}
+
 
   /* USER CODE END Nx_App_Thread_Entry 0 */
 
-}
 /* USER CODE BEGIN 1 */
 UINT ftpLogin(struct NX_FTP_SERVER_STRUCT *ftp_server_ptr, ULONG client_ip_address, UINT client_port, CHAR *name, CHAR *password, CHAR *extra_info)
 {

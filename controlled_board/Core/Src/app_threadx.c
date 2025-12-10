@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "main.h"
+#include "encode_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -113,8 +114,13 @@ void MX_ThreadX_Init(void)
 
 void led_thread_entry(ULONG init)
 {
+
+
+
 	while(1)
 	{
+
+
 
 		tx_thread_sleep(20);
 	}
