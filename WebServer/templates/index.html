@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PSR Motor Controller - Live Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #1a1a1a; 
+            color: #EEE; 
+            margin: 0;
+            padding: 20px;
+        }
+        .container { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            max-width: 1200px; 
+            margin: auto; 
+        }
+        h2 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        .info-box {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            width: 100%;
+            text-align: center;
+            border-left: 4px solid #4CAF50;
+        }
+        .info-box span {
+            margin: 0 15px;
+            font-size: 14px;
+        }
+        .status-ok { color: #4CAF50; }
+        .status-error { color: #f44336; }
+        .chart-box { 
+            background: #2a2a2a; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 15px 0; 
+            width: 100%; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .chart-box h3 {
+            margin-top: 0;
+            color: #4CAF50;
+            font-size: 18px;
+        }
+        .current-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00BCD4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🎮 PSR Motor Controller - Real-Time Monitoring</h2>
+        
+        <div class="info-box">
+            <span>⏱️ Refresh: <strong>100ms</strong></span>
+            <span>📊 Resolution: <strong>5ms</strong></span>
+            <span>📈 History: <strong>2 seconds</strong></span>
+            <span id="status">🔴 Connecting...</span>
+        </div>
+        
+        <div class="chart-box">
+            <h3>📍 Position - Requested vs Actual</h3>
+            <div style="text-align: center; margin-bottom: 10px;">
+                <span>Actual: <span class="current-value" id="current_pos_label">--</span></span>
+            </div>
+            <canvas id="positionChart"></canvas>
+        </div>
+
+        <div class="chart-box">
+            <h3>⚡ PWM Duty Cycle</h3>
+            <div style="text-align: center; margin-bottom: 10px;">
+                <span>Current: <span class="current-value" id="current_pwm_label">--</span></span>
+            </div>
+            <canvas id="pwmChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const MAX_HISTORY_MS = 2000;  // 2 seconds of history
+        const REFRESH_RATE = 100;      // Update every 100ms
+        const SAMPLE_INTERVAL_MS = 5;  // Resolution 5ms
+        const MAX_SAMPLES = MAX_HISTORY_MS / SAMPLE_INTERVAL_MS; // 400 samples
+
+        // Arrays for historical data (we keep 400 samples = 2 seconds)
+        let timeLabels = [];
+        let dataActual = [];
+        let dataRequested = [];
+        let dataPwm = [];
+        
+        let sampleCounter = 0; // Counter to generate relative timestamps
+
+        // Initialize position chart
+        const positionCtx = document.getElementById('positionChart').getContext('2d');
+        const positionChart = new Chart(positionCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { 
+                        label: 'Requested Position', 
+                        data: dataRequested, 
+                        borderColor: 'rgb(255, 99, 132)', 
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1, 
+                        pointRadius: 0,
+                        borderWidth: 2
+                    },
+                    { 
+                        label: 'Actual Position', 
+                        data: dataActual, 
+                        borderColor: 'rgb(75, 192, 192)', 
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.1, 
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: false,
+                scales: { 
+                    x: {
+                        ticks: { color: '#AAA' },
+                        grid: { color: '#333' }
+                    },
+                    y: { 
+                        beginAtZero: false,
+                        ticks: { color: '#AAA' },
+                        grid: { color: '#333' }
+                    }
+                },
+                plugins: { 
+                    legend: { 
+                        display: true, 
+                        position: 'top',
+                        labels: { color: '#EEE' }
+                    } 
+                }
+            }
+        });
+
+        // Initialize PWM chart
+        const pwmCtx = document.getElementById('pwmChart').getContext('2d');
+        const pwmChart = new Chart(pwmCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { 
+                        label: 'Duty Cycle PWM (-100% to +100%)', 
+                        data: dataPwm, 
+                        borderColor: 'rgb(54, 162, 235)', 
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1, 
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: false,
+                scales: { 
+                    x: {
+                        ticks: { color: '#AAA' },
+                        grid: { color: '#333' }
+                    },
+                    y: { 
+                        beginAtZero: true, 
+                        min: -100, 
+                        max: 100,
+                        ticks: { 
+                            color: '#AAA',
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        grid: { color: '#333' }
+                    }
+                },
+                plugins: { 
+                    legend: { 
+                        display: true,
+                        labels: { color: '#EEE' }
+                    } 
+                }
+            }
+        });
+
+        // Function to add a batch of samples
+        function addSamplesToGraph(actualArray, requestedArray, pwmArray, dtMs) {
+            const numSamples = actualArray.length;
+            
+            for (let i = 0; i < numSamples; i++) {
+                // Calculate relative timestamp in seconds
+                const timeSeconds = (sampleCounter * dtMs) / 1000;
+                timeLabels.push(timeSeconds.toFixed(3));
+                
+                // Add data
+                dataActual.push(actualArray[i]);
+                dataRequested.push(requestedArray[i]);
+                dataPwm.push((pwmArray[i] / 500) * 100); // Normalize PWM to percentage
+                
+                sampleCounter++;
+            }
+            
+            // Remove old samples to keep only 2 seconds
+            while (timeLabels.length > MAX_SAMPLES) {
+                timeLabels.shift();
+                dataActual.shift();
+                dataRequested.shift();
+                dataPwm.shift();
+            }
+        }
+
+        // Main update function
+        async function updateGraphs() {
+            try {
+                // Request to Flask server to get all 20 samples
+                const response = await fetch('/api/data/batch');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Update status
+                    document.getElementById('status').innerHTML = '🟢 <span class="status-ok">Connected</span>';
+                    
+                    // Add all received samples
+                    addSamplesToGraph(
+                        data.actual,
+                        data.requested,
+                        data.pwm,
+                        data.dt_ms
+                    );
+                    
+                    // Update current values (last sample)
+                    const lastIdx = data.actual.length - 1;
+                    document.getElementById('current_pos_label').textContent = 
+                        data.actual[lastIdx].toFixed(0);
+                    document.getElementById('current_pwm_label').textContent = 
+                        ((data.pwm[lastIdx] / 500) * 100).toFixed(1) + '%';
+                    
+                    const allPos = dataActual.concat(dataRequested);
+                    if (allPos.length > 0) {
+                        let minVal = Math.min(...allPos);
+                        let maxVal = Math.max(...allPos);
+                        let center = (minVal + maxVal) / 2;
+
+                        const halfRange = 180; // 360 tick totali
+                        positionChart.options.scales.y.min = center - halfRange;
+                        positionChart.options.scales.y.max = center + halfRange;
+                    }
+                if (dataPwm.length > 0) {
+                    let minPwm = Math.min(...dataPwm);
+                    let maxPwm = Math.max(...dataPwm);
+                    let centerPwm = (minPwm + maxPwm) / 2;
+                    let rangePwm = maxPwm - minPwm;
+
+                    const MIN_TOTAL_RANGE = 10;
+                    const MAX_TOTAL_RANGE = 200;
+
+                    let totalRange = Math.max(rangePwm * 1.2, MIN_TOTAL_RANGE); 
+                    totalRange = Math.min(totalRange, MAX_TOTAL_RANGE);
+
+                    let halfRangePwm = totalRange / 2;
+
+                    let yMin = centerPwm - halfRangePwm;
+                    let yMax = centerPwm + halfRangePwm;
+
+                    if (yMin < -100) yMin = -100;
+                    if (yMax > 100) yMax = 100;
+
+                    pwmChart.options.scales.y.min = yMin;
+                    pwmChart.options.scales.y.max = yMax;
+                }
+
+                positionChart.update();
+                pwmChart.update();
+
+                    
+                } else {
+                    console.error('Error:', data.message);
+                    document.getElementById('status').innerHTML = '🟡 <span class="status-error">Waiting for data...</span>';
+                }
+                
+            } catch (error) {
+                console.error('Network error:', error);
+                document.getElementById('status').innerHTML = '🔴 <span class="status-error">Connection error</span>';
+            }
+        }
+
+        // Start automatic update every 100ms
+        setInterval(updateGraphs, REFRESH_RATE);
+        
+        // First immediate request
+        updateGraphs();
+        
+        console.log('PSR Motor Controller - Live monitoring started');
+        console.log(`Refresh rate: ${REFRESH_RATE}ms`);
+        console.log(`Sample resolution: ${SAMPLE_INTERVAL_MS}ms`);
+        console.log(`History window: ${MAX_HISTORY_MS}ms (${MAX_SAMPLES} samples)`);
+    </script>
+</body>
+</html>
