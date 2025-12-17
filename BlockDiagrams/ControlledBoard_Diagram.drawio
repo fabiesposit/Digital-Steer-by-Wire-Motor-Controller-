@@ -1,0 +1,124 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.2.8 Chrome/140.0.7339.240 Electron/38.4.0 Safari/537.36" version="28.2.8">
+  <diagram name="Controlled Wheel" id="w5I01TDKlsa7XlourSij">
+    <mxGraphModel dx="1895" dy="1138" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0" adaptiveColors="auto">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-1" value="Controlled Wheel — Detailed Block Diagram (PID 2 ms via TIM3 ISR + Logger 5 ms via sleep)" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="80" y="20" width="1440" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-2" value="MCU Hardware / Peripherals" style="swimlane;html=1;rounded=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="1480" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-3" value="TIM1 (Encoder Mode)&#xa;- Counter CNT (16-bit)&#xa;- Used as position sensor source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-2">
+          <mxGeometry x="20" y="60" width="250" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-4" value="TIM2 (PWM Output)&#xa;- CCR3 / CCR4 set for direction&#xa;- Period = MOTOR_PWM_MAX (500)&#xa;- Drives H-bridge / motor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-2">
+          <mxGeometry x="310" y="60" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-5" value="TIM3 (Base Timer + IRQ)&#xa;- Periodic interrupt every 2 ms&#xa;- ISR sets ThreadX event flag (0x1) to trigger PID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-2">
+          <mxGeometry x="650" y="60" width="320" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-6" value="ETH (RMII)&#xa;- NetX Duo IP stack&#xa;- UDP setpoint RX&#xa;- HTTP / FTP services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-2">
+          <mxGeometry x="1010" y="60" width="250" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-7" value="SDMMC1 + FileX&#xa;- SD mounted before servers start&#xa;- Used by HTTP/FTP (web content/files)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-2">
+          <mxGeometry x="1280" y="60" width="170" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-8" value="ThreadX / Application RTOS Objects" style="swimlane;html=1;rounded=1;startSize=30;fillColor=#eef7ff;strokeColor=#1b6ca8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="340" width="1480" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-9" value="TX_EVENT_FLAGS_GROUP pid_event_flags&#xa;- bit 0x1: PID tick&#xa;- Set by TIM3 ISR&#xa;- Waited by PID thread (OR_CLEAR)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1b6ca8;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-8">
+          <mxGeometry x="20" y="60" width="300" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-10" value="TX_MUTEX mutex_req_pos&#xa;- Protects requested_position&#xa;- Written by UDP RX&#xa;- Read by PID + Logger" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1b6ca8;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-8">
+          <mxGeometry x="340" y="60" width="300" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-11" value="Global shared variable&#xa;requested_position : int32_t&#xa;- Setpoint for position control" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbe6;strokeColor=#b59b00;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-8">
+          <mxGeometry x="660" y="80" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-12" value="Synchronization (Net services)&#xa;- SD mount done semaphore/flag&#xa;- NxAppThread waits before starting HTTP/FTP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1b6ca8;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-8">
+          <mxGeometry x="940" y="60" width="300" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-13" value="Notes&#xa;- PID periodicity = 2 ms (TIM3 IRQ → event flag)&#xa;- Logger periodicity = 5 ms (tx_thread_sleep(1 tick))" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#888888;fontStyle=2;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-8">
+          <mxGeometry x="1260" y="60" width="190" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-14" value="Software Modules / Threads (Detailed)" style="swimlane;html=1;rounded=1;startSize=30;fillColor=#f3fff0;strokeColor=#2e7d32;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="630" width="1480" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-15" value="NxAppThread (NetX Duo)&#xa;UDP RX + HTTP/FTP startup&#xa;1) nx_udp_socket_receive (blocking)&#xa;2) parse int32 setpoint from payload&#xa;3) lock mutex_req_pos → requested_position = pos → unlock&#xa;4) HTTP /data uses logger buffer (JSON)&#xa;5) FTP/HTTP start after SD mounted" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-14">
+          <mxGeometry x="20" y="60" width="410" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-16" value="pid_thread (prio 10) — runs every 2 ms&lt;br&gt;Triggered by pid_event_flags bit 0x1&lt;br&gt;1) Wait flags (OR_CLEAR)&lt;br&gt;2) Read requested_position (try TX_NO_WAIT; else use last_req_pos)&lt;br&gt;3) encoder_driver_input(&amp;amp;act_pos)&lt;br&gt;4) PID compute:&lt;br&gt;   e = req - act&lt;br&gt;   u = KP*e&amp;nbsp;&lt;br&gt;5) motor_driver_set_duty((int16)u)&lt;br&gt;   - saturate to ±MOTOR_PWM_MAX&lt;br&gt;   - set TIM2 CCR3/CCR4 based on sign&lt;br&gt;   - compute current_pwm [%]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-14">
+          <mxGeometry x="450" y="60" width="520" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-17" value="encoder_driver (module)&#xa;State:&#xa;- TX_MUTEX encoder_mutex&#xa;- int32 encoder_position (unwrapped)&#xa;- uint16 encoder_last_count&#xa;encoder_driver_input():&#xa;1) lock encoder_mutex&#xa;2) current = TIM1-&gt;CNT&#xa;3) delta = (int16)(current - last)&#xa;4) encoder_position += delta&#xa;5) last = current&#xa;6) *position = encoder_position&#xa;7) unlock encoder_mutex" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-14">
+          <mxGeometry x="990" y="60" width="240" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-18" value="motor_driver (module)&#xa;State:&#xa;- TX_MUTEX motor_mutex&#xa;- int16 current_duty&#xa;- uint16 current_pwm (0..100%)&#xa;motor_driver_set_duty(d):&#xa;1) saturate d to ±MOTOR_PWM_MAX&#xa;2) lock motor_mutex&#xa;3) if d ≥ 0: CCR4=0, CCR3=d&#xa;   else: CCR4=-d, CCR3=0&#xa;4) current_pwm = |d|*100/MOTOR_PWM_MAX&#xa;5) unlock motor_mutex&#xa;get_pwm(): returns current_pwm" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-14">
+          <mxGeometry x="1250" y="60" width="210" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-19" value="signal_logger_thread (prio 11) — runs every 5 ms&#xa;Loop:&#xa;1) encoder_driver_input(&amp;encoder_pos)&#xa;2) motor_driver_get_pwm(&amp;pwm_raw)&#xa;3) lock mutex_req_pos → req_pos = requested_position → unlock&#xa;4) lock log_mutex&#xa;   log_buf[log_head] = {actual, requested, pwm}&#xa;   log_head = (log_head + 1) % LOG_LEN&#xa;   unlock log_mutex&#xa;5) tx_thread_sleep(1 tick) ⇒ 5 ms" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-14">
+          <mxGeometry x="20" y="290" width="620" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-20" value="Logger circular buffer&#xa;log_buf[LOG_LEN] + log_head&#xa;Protected by TX_MUTEX log_mutex&#xa;signal_logger_get_last_samples(dst):&#xa;- returns LOG_LEN samples in chronological order&#xa;- oldest = log_head, newest = log_head-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbe6;strokeColor=#b59b00;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-14">
+          <mxGeometry x="660" y="290" width="430" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-21" value="HTTP endpoint: GET /data&#xa;1) signal_logger_get_last_samples(samples)&#xa;2) build JSON: {dt_ms, actual[], requested[], pwm[]}&#xa;3) send response (NetX Web HTTP Server)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="n9ZXK9S_1-dt34MfWGKP-14">
+          <mxGeometry x="1110" y="290" width="350" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-22" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-5" target="n9ZXK9S_1-dt34MfWGKP-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-23" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-9" target="n9ZXK9S_1-dt34MfWGKP-16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-24" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-15" target="n9ZXK9S_1-dt34MfWGKP-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-25" style="endArrow=block;html=1;strokeColor=#b59b00;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-10" target="n9ZXK9S_1-dt34MfWGKP-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-26" style="endArrow=block;html=1;strokeColor=#b59b00;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-11" target="n9ZXK9S_1-dt34MfWGKP-16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-27" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-3" target="n9ZXK9S_1-dt34MfWGKP-17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-28" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-17" target="n9ZXK9S_1-dt34MfWGKP-16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-29" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-16" target="n9ZXK9S_1-dt34MfWGKP-18">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-30" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-18" target="n9ZXK9S_1-dt34MfWGKP-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-31" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-17" target="n9ZXK9S_1-dt34MfWGKP-19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-32" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-18" target="n9ZXK9S_1-dt34MfWGKP-19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-33" style="endArrow=block;html=1;strokeColor=#b59b00;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-11" target="n9ZXK9S_1-dt34MfWGKP-19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-34" style="endArrow=block;html=1;strokeColor=#b59b00;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-19" target="n9ZXK9S_1-dt34MfWGKP-20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-35" style="endArrow=block;html=1;strokeColor=#2e7d32;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-20" target="n9ZXK9S_1-dt34MfWGKP-21">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-36" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-6" target="n9ZXK9S_1-dt34MfWGKP-15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-37" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-7" target="n9ZXK9S_1-dt34MfWGKP-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n9ZXK9S_1-dt34MfWGKP-38" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="n9ZXK9S_1-dt34MfWGKP-12" target="n9ZXK9S_1-dt34MfWGKP-15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
