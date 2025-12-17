@@ -1,0 +1,146 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.0.3 Chrome/140.0.7339.249 Electron/38.7.0 Safari/537.36" version="29.0.3" pages="2">
+  <diagram name="Steering Wheel" id="steering-wheel-diagram">
+    <mxGraphModel dx="1084" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Steering Wheel — Detailed Block Diagram (Encoder Reading + Network Services)" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="80" y="20" width="1000" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="hw-swimlane" value="MCU Hardware / Peripherals" style="swimlane;html=1;rounded=1;startSize=30;fillColor=none;strokeColor=#666666;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="60" y="80" width="1050" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="tim1" value="TIM1 (Encoder Mode)&#xa;- Counter CNT (16-bit)&#xa;- Channels 1+2 for quadrature&#xa;- Used as position sensor source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;" parent="hw-swimlane" vertex="1">
+          <mxGeometry x="20" y="50" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="tim2" value="TIM2 (PWM Output)&#xa;- CCR3 / CCR4 channels&#xa;- Period = 500 (10kHz @ 120MHz/24)&#xa;- Can drive H-bridge / motor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;" parent="hw-swimlane" vertex="1">
+          <mxGeometry x="260" y="50" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="eth" value="ETH (RMII)&#xa;- NetX Duo IP stack&#xa;- HTTP Server :80&#xa;- FTP Server :21&#xa;- UDP Echo :5000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;" parent="hw-swimlane" vertex="1">
+          <mxGeometry x="500" y="50" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="sdmmc" value="SDMMC1 + FileX&#xa;- SD card mounted before servers&#xa;- Root for HTTP/FTP file access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;" parent="hw-swimlane" vertex="1">
+          <mxGeometry x="720" y="50" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="usart" value="USART3 (COM1)&#xa;- 115200 baud&#xa;- Debug console" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;" parent="hw-swimlane" vertex="1">
+          <mxGeometry x="920" y="50" width="110" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="rtos-swimlane" value="ThreadX / Application RTOS Objects" style="swimlane;html=1;rounded=1;startSize=30;fillColor=none;strokeColor=#1b6ca8;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="60" y="280" width="1050" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="enc-mutex" value="TX_MUTEX encoder_mutex&#xa;- Property: TX_INHERIT&#xa;- Protects encoder_position&#xa;- Protects encoder_last_count" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#1b6ca8;" parent="rtos-swimlane" vertex="1">
+          <mxGeometry x="20" y="50" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="enc-vars" value="Static Variables (encoder_driver.c)&#xa;encoder_position : int32_t&#xa;encoder_last_count : uint16_t&#xa;- Continuous unwrapped position" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b59b00;" parent="rtos-swimlane" vertex="1">
+          <mxGeometry x="260" y="50" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="sd-sem" value="&lt;div&gt;TX_EVENT_FLAGS_GROUP event_flag&lt;/div&gt;&lt;div&gt;- Event flags group&lt;/div&gt;&lt;div&gt;- Created during ThreadX initialization&lt;/div&gt;&lt;div&gt;- Set periodically by TIM3 interrupt service routine&lt;/div&gt;&lt;div&gt;- Used by NxAppThread to synchronize encoder sampling and UDP transmission&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#1b6ca8;" parent="rtos-swimlane" vertex="1">
+          <mxGeometry x="500" y="50" width="230" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="notes" value="Notes&#xa;- IP Address: 192.168.1.1&#xa;- Subnet: 255.255.255.0&#xa;- MAC: 00:80:E1:00:00:00" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#888888;fontStyle=2;" parent="rtos-swimlane" vertex="1">
+          <mxGeometry x="740" y="50" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="sw-swimlane" value="Software Modules / Threads (Detailed)" style="swimlane;html=1;rounded=1;startSize=30;fillColor=none;strokeColor=#2e7d32;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="60" y="490" width="1050" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="led-thread" value="&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;ThreadX Initialization (App_ThreadX_Init)&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- Creates LED thread (led_thread)&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- Creates TX_EVENT_FLAGS_GROUP event_flag&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- Starts TIM3 in interrupt mode&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- Enables TraceX tracing&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;Notes:&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- TIM3 generates periodic interrupts&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- TIM3 ISR sets event_flag to trigger encoder sampling&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;- event_flag is consumed by NxAppThread&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#2e7d32;" parent="sw-swimlane" vertex="1">
+          <mxGeometry x="20" y="50" width="180" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="nx-thread" value="&lt;div&gt;NxAppThread (prio 10)&lt;/div&gt;&lt;div&gt;Entry: nx_app_thread_entry&lt;/div&gt;&lt;div&gt;Stack: 4096 bytes&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;1) tx_semaphore_get(sdMountDone)&lt;/div&gt;&lt;div&gt;2) nx_ftp_server_create + start&lt;/div&gt;&lt;div&gt;3) nx_web_http_server_create&lt;/div&gt;&lt;div&gt;4) Set MIME maps (css, js, png...)&lt;/div&gt;&lt;div&gt;5) nx_web_http_server_start&lt;/div&gt;&lt;div&gt;6) encoder_driver_initialize&lt;/div&gt;&lt;div&gt;7) nx_udp_socket_create + bind (:5000)&lt;/div&gt;&lt;div&gt;8) Loop: wait for event_flag (set by TIM3 ISR)&lt;/div&gt;&lt;div&gt;9) Read encoder position (TIM1 encoder mode)&lt;/div&gt;&lt;div&gt;10) Convert position to big-endian format&lt;/div&gt;&lt;div&gt;11) Send UDP packet to Controlled Board (:5001)&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#2e7d32;" parent="sw-swimlane" vertex="1">
+          <mxGeometry x="220" y="50" width="460" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="encoder-driver" value="encoder_driver (module)&#xa;&#xa;encoder_driver_initialize():&#xa;- tx_mutex_create(TX_INHERIT)&#xa;- encoder_last_count = TIM1→CNT&#xa;- encoder_position = 0&#xa;&#xa;encoder_driver_input(*pos):&#xa;1) tx_mutex_get(WAIT_FOREVER)&#xa;2) current = TIM1→CNT&#xa;3) delta = (int16)(current - last)&#xa;4) encoder_position += delta&#xa;5) last = current&#xa;6) *pos = encoder_position&#xa;7) tx_mutex_put()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#2e7d32;" parent="sw-swimlane" vertex="1">
+          <mxGeometry x="740" y="50" width="280" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="arr1" style="endArrow=block;html=1;strokeColor=#333333;" parent="1" source="tim1" target="encoder-driver" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr2" style="endArrow=block;html=1;strokeColor=#1b6ca8;" parent="1" source="enc-mutex" target="enc-vars" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr3" style="endArrow=block;html=1;strokeColor=#b59b00;" parent="1" source="enc-vars" target="encoder-driver" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr4" style="endArrow=block;html=1;strokeColor=#333333;" parent="1" source="sdmmc" target="sd-sem" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr5" style="endArrow=block;html=1;strokeColor=#1b6ca8;" parent="1" source="sd-sem" target="nx-thread" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr6" style="endArrow=block;html=1;strokeColor=#333333;" parent="1" source="eth" target="nx-thread" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Web Server" id="webserver-diagram">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- Title -->
+        <mxCell id="ws-title" value="Web Monitoring Server — Detailed Block Diagram (Flask + Chart.js Real-Time Display)" style="text;html=1;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="80" y="20" width="1000" height="40" as="geometry" />
+        </mxCell>
+        <!-- External Systems Swimlane -->
+        <mxCell id="ext-swimlane" value="External Systems" style="swimlane;html=1;rounded=1;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="1050" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="controlled-board" value="Controlled Board (STM32)&#xa;IP: 192.168.1.2:80&#xa;&#xa;HTTP Server endpoint:&#xa;GET /data → JSON&#xa;{actual[], requested[], pwm[], dt_ms}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" vertex="1" parent="ext-swimlane">
+          <mxGeometry x="20" y="40" width="280" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="browser" value="Web Browser Client&#xa;&#xa;- Requests /api/data/batch every 100ms&#xa;- Renders Chart.js graphs&#xa;- 2-second history window (400 samples)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;" vertex="1" parent="ext-swimlane">
+          <mxGeometry x="750" y="40" width="280" height="90" as="geometry" />
+        </mxCell>
+        <!-- Python Threading / Synchronization Swimlane -->
+        <mxCell id="sync-swimlane" value="Python Threading / Synchronization" style="swimlane;html=1;rounded=1;startSize=30;fillColor=#eef7ff;strokeColor=#1b6ca8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="240" width="1050" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="cache-lock" value="threading.Lock()&#xa;cache_lock&#xa;&#xa;- Protects data_cache dict&#xa;- Acquired with &#39;with&#39; statement&#xa;- Auto-released on exit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1b6ca8;" vertex="1" parent="sync-swimlane">
+          <mxGeometry x="20" y="40" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="data-cache" value="data_cache (dict)&#xa;&#xa;actual: [20 floats]&#xa;requested: [20 floats]&#xa;pwm: [20 floats]&#xa;dt_ms: 5&#xa;timestamp: float" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbe6;strokeColor=#b59b00;" vertex="1" parent="sync-swimlane">
+          <mxGeometry x="280" y="40" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="config" value="Configuration&#xa;&#xa;controlled_board_IP: 192.168.1.2&#xa;controlled_board_port: 80&#xa;Flask port: 5001&#xa;Fetch interval: 100ms" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#888888;fontStyle=2;" vertex="1" parent="sync-swimlane">
+          <mxGeometry x="520" y="40" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="timing" value="Timing Parameters&#xa;&#xa;Board sampling: 5ms (200 Hz)&#xa;Batch size: 20 samples&#xa;Fetch cycle: 100ms (10 Hz)&#xa;Display history: 2 sec" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#888888;fontStyle=2;" vertex="1" parent="sync-swimlane">
+          <mxGeometry x="760" y="40" width="200" height="100" as="geometry" />
+        </mxCell>
+        <!-- Software Modules Swimlane -->
+        <mxCell id="sw-swimlane" value="Software Modules / Threads" style="swimlane;html=1;rounded=1;startSize=30;fillColor=#f3fff0;strokeColor=#2e7d32;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="420" width="1050" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="fetcher" value="data_fetcher() — Daemon Thread&#xa;&#xa;while True:&#xa;  try:&#xa;    response = requests.get(&#xa;      board_url + &quot;/data&quot;,&#xa;      timeout=0.5&#xa;    )&#xa;    if response.status_code == 200:&#xa;      data = response.json()&#xa;      with cache_lock:&#xa;        data_cache[&quot;actual&quot;] = data[&quot;actual&quot;]&#xa;        data_cache[&quot;requested&quot;] = ...&#xa;        data_cache[&quot;pwm&quot;] = ...&#xa;        data_cache[&quot;timestamp&quot;] = now()&#xa;  except Timeout/ConnectionError:&#xa;    log error, continue&#xa;  time.sleep(0.1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;align=left;spacingLeft=10;" vertex="1" parent="sw-swimlane">
+          <mxGeometry x="20" y="50" width="300" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="flask-app" value="Flask Application&#xa;&#xa;@app.route(&#39;/&#39;)&#xa;def index():&#xa;  return render_template(&#39;index.html&#39;)&#xa;&#xa;@app.route(&#39;/api/data/batch&#39;)&#xa;def api_data_batch():&#xa;  with cache_lock:&#xa;    if len(data_cache[&quot;actual&quot;]) == 0:&#xa;      return jsonify({status: error}), 503&#xa;    return jsonify({&#xa;      status: success,&#xa;      actual: [...],&#xa;      requested: [...],&#xa;      pwm: [...],&#xa;      dt_ms: 5,&#xa;      timestamp: ...&#xa;    })" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;align=left;spacingLeft=10;" vertex="1" parent="sw-swimlane">
+          <mxGeometry x="350" y="50" width="280" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend" value="Frontend (index.html + Chart.js)&#xa;&#xa;Configuration:&#xa;- MAX_HISTORY_MS: 2000&#xa;- REFRESH_RATE: 100ms&#xa;- SAMPLE_INTERVAL_MS: 5&#xa;- MAX_SAMPLES: 400&#xa;&#xa;updateGraphs():&#xa;  fetch(&#39;/api/data/batch&#39;)&#xa;  addSamplesToGraph(data)&#xa;  positionChart.update()&#xa;  pwmChart.update()&#xa;&#xa;addSamplesToGraph():&#xa;  for sample in batch:&#xa;    arrays.push(sample)&#xa;  while length &gt; 400:&#xa;    arrays.shift()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;align=left;spacingLeft=10;" vertex="1" parent="sw-swimlane">
+          <mxGeometry x="660" y="50" width="280" height="280" as="geometry" />
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="ws-arr1" value="HTTP GET /data&#xa;every 100ms" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="fetcher" target="controlled-board">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ws-arr2" value="write" style="endArrow=block;html=1;strokeColor=#b59b00;" edge="1" parent="1" source="fetcher" target="data-cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ws-arr3" value="read" style="endArrow=block;html=1;strokeColor=#b59b00;" edge="1" parent="1" source="data-cache" target="flask-app">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ws-arr4" style="endArrow=block;html=1;strokeColor=#1b6ca8;" edge="1" parent="1" source="cache-lock" target="data-cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ws-arr5" value="fetch()" style="endArrow=block;html=1;strokeColor=#2e7d32;" edge="1" parent="1" source="frontend" target="flask-app">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ws-arr6" value="render" style="endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="frontend" target="browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
